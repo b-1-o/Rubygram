@@ -185,6 +185,7 @@ enum PeerInfoSettingsSection {
     case support
     case faq
     case tips
+    case rubygram
     case biogram
     case phoneNumber
     case username

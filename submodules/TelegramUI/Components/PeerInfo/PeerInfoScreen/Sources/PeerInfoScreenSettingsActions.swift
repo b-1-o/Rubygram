@@ -206,6 +206,8 @@ extension PeerInfoScreenNode {
             self.openFaq()
         case .tips:
             self.openTips()
+        case .rubygram:
+            push(ghostModeSettingsController(context: self.context))
         case .biogram:
     push(biogramSettingsController(context: self.context))    
         case .phoneNumber:

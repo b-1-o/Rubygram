@@ -12,6 +12,7 @@ import ItemListPeerItem
 import DeviceAccess
 import TelegramStringFormatting
 import PeerNameColorItem
+import SGStrings
 
 enum SettingsSection: Int, CaseIterable {
     case edit
@@ -391,8 +392,8 @@ items[.support]!.append(PeerInfoScreenDisclosureItem(
 items[.support]!.append(PeerInfoScreenDisclosureItem(id: 1, text: presentationData.strings.Settings_FAQ, icon: PresentationResourcesSettings.faq, action: {
     interaction.openSettings(.faq)
 }))
-items[.support]!.append(PeerInfoScreenDisclosureItem(id: 2, text: presentationData.strings.Settings_Tips, icon: PresentationResourcesSettings.tips, action: {
-    interaction.openSettings(.tips)
+items[.support]!.append(PeerInfoScreenDisclosureItem(id: 2, text: "Settings.RubygramFeatures".i18n(presentationData.strings.baseLanguageCode), icon: PresentationResourcesSettings.tips, action: {
+    interaction.openSettings(.rubygram)
 }))
     
     var result: [(AnyHashable, [PeerInfoScreenItem])] = []
