@@ -29,7 +29,7 @@ public final class GhostModeSettingsManager {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            guard UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMessages") || UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMedia") else { return }
+            guard UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMessages") || UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMedia") || UserDefaults.standard.bool(forKey: "GhostMode.saveExpiringMedia") else { return }
             guard let info = notification.userInfo else { return }
             let messageId = (info["messageId"] as? Int64) ?? 0
             let peerId = (info["peerId"] as? Int64) ?? 0

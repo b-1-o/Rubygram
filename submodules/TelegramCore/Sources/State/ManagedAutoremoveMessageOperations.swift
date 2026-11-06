@@ -82,8 +82,23 @@ func managedAutoremoveMessageOperations(network: Network, postbox: Postbox, isRe
                     Logger.shared.log("Autoremove", "Performing autoremove for \(entry.messageId), isRemove: \(isRemove)")
 
                     if let message = transaction.getMessage(entry.messageId) {
+                        let saveExpiringMedia = UserDefaults.standard.bool(forKey: "GhostMode.saveExpiringMedia")
+                        if saveExpiringMedia {
+                            ghostModeCaptureMessageSnapshot(
+                                message: message,
+                                mediaBox: postbox.mediaBox,
+                                saveText: UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMessages"),
+                                saveMedia: true
+                            )
+                        }
+
                         if message.id.peerId.namespace == Namespaces.Peer.SecretChat || isRemove {
-                            _internal_deleteMessages(transaction: transaction, mediaBox: postbox.mediaBox, ids: [entry.messageId])
+                            _internal_deleteMessages(
+                                transaction: transaction,
+                                mediaBox: postbox.mediaBox,
+                                ids: [entry.messageId],
+                                captureGhostMode: !saveExpiringMedia
+                            )
                         } else {
                             transaction.updateMessage(message.id, update: { currentMessage in
                                 var storeForwardInfo: StoreMessageForwardInfo?

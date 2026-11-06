@@ -133,177 +133,164 @@ private func ghostModeCopyResource(
 }
 
 
-public func _internal_deleteMessages(transaction: Transaction, mediaBox: MediaBox, ids: [MessageId], deleteMedia: Bool = true, manualAddMessageThreadStatsDifference: ((MessageThreadKey, Int, Int) -> Void)? = nil) {
-    // Ghost Mode: snapshot before Postbox removal (covers interactive + server deletes).
-    if UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMessages") || UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMedia") {
-        for id in ids {
-            if let message = transaction.getMessage(id) {
-                var mediaSummary: String? = nil
-                if !message.media.isEmpty {
-                    mediaSummary = String(describing: type(of: message.media[0]))
-                }
-                let saveDeletedMessages = UserDefaults.standard.bool(
-                    forKey: "GhostMode.saveDeletedMessages"
-                )
+// Capture a message before its expiring media is replaced or removed. The settings manager
+// persists this notification using the same snapshot format as ordinary message deletion.
+func ghostModeCaptureMessageSnapshot(message: Message, mediaBox: MediaBox, saveText: Bool, saveMedia: Bool) {
+    guard saveText || saveMedia else { return }
+    let hasSupportedMedia = message.media.contains { $0 is TelegramMediaImage || $0 is TelegramMediaFile }
+    if !saveText && !hasSupportedMedia { return }
 
-                let saveDeletedMedia = UserDefaults.standard.bool(
-                    forKey: "GhostMode.saveDeletedMedia"
-                )
+    var mediaSummary: String?
+    if let firstMedia = message.media.first {
+        mediaSummary = String(describing: type(of: firstMedia))
+    }
 
-                var localMediaPath: String? = nil
-                var capturedMediaType: String? = nil
-                var capturedMimeType: String? = nil
-                var capturedFileName: String? = nil
-                var capturedFileSize: Int64? = nil
-                var capturedDuration: Double? = nil
-                var capturedWidth: Int32? = nil
-                var capturedHeight: Int32? = nil
+    var localMediaPath: String?
+    var capturedMediaType: String?
+    var capturedMimeType: String?
+    var capturedFileName: String?
+    var capturedFileSize: Int64?
+    var capturedDuration: Double?
+    var capturedWidth: Int32?
+    var capturedHeight: Int32?
 
-                if saveDeletedMedia {
-                    let peerId = message.id.peerId.toInt64()
-                    let messageId = message.id.id
+    if saveMedia {
+        let peerId = message.id.peerId.toInt64()
+        let messageId = message.id.id
 
-                    // TODO: support multiple media per message (album).
-                    if let file = message.media.first(
-                        where: { $0 is TelegramMediaFile }
-                    ) as? TelegramMediaFile {
-                        capturedMimeType = file.mimeType
-                        capturedFileName = file.fileName
-                        capturedFileSize = file.size
+        // The snapshot format stores one resource per message; album support is separate.
+        if let file = message.media.first(where: { $0 is TelegramMediaFile }) as? TelegramMediaFile {
+            capturedMimeType = file.mimeType
+            capturedFileName = file.fileName
+            capturedFileSize = file.size
 
-                        var isVoice = false
-                        var isRoundVideo = false
-                        var isAnimated = false
-                        var hasVideoAttribute = false
+            var isVoice = false
+            var isRoundVideo = false
+            var isAnimated = false
+            var hasVideoAttribute = false
 
-                        for attribute in file.attributes {
-                            switch attribute {
-                            case let .Audio(attributeIsVoice, attributeDuration, _, _, _):
-                                capturedDuration = Double(attributeDuration)
-                                if attributeIsVoice {
-                                    isVoice = true
-                                }
-                            case let .Video(attributeDuration, dimensions, flags, _, _, _):
-                                hasVideoAttribute = true
-                                capturedDuration = attributeDuration
-                                capturedWidth = dimensions.width
-                                capturedHeight = dimensions.height
-                                if flags.contains(.instantRoundVideo) {
-                                    isRoundVideo = true
-                                }
-                            case let .ImageSize(dimensions):
-                                capturedWidth = dimensions.width
-                                capturedHeight = dimensions.height
-                            case .Animated:
-                                isAnimated = true
-                            default:
-                                break
-                            }
-                        }
-
-                        let normalizedMimeType = file.mimeType.lowercased()
-                        if isRoundVideo {
-                            capturedMediaType = "round"
-                        } else if isVoice {
-                            capturedMediaType = "voice"
-                        } else if isAnimated || normalizedMimeType == "image/gif" {
-                            capturedMediaType = "gif"
-                        } else if hasVideoAttribute || normalizedMimeType.hasPrefix("video/") {
-                            capturedMediaType = "video"
-                        } else {
-                            capturedMediaType = "file"
-                        }
-
-                        localMediaPath = ghostModeCopyResource(
-                            mediaBox: mediaBox,
-                            resource: file.resource,
-                            peerId: peerId,
-                            messageId: messageId,
-                            ext: ghostModeFileExtension(file)
-                        )
-                    } else if let image = message.media.first(
-                        where: { $0 is TelegramMediaImage }
-                    ) as? TelegramMediaImage {
-                        let largestRepresentation = image.representations.max {
-                            lhs, rhs in
-
-                            let lhsArea =
-                                Int64(lhs.dimensions.width) *
-                                Int64(lhs.dimensions.height)
-
-                            let rhsArea =
-                                Int64(rhs.dimensions.width) *
-                                Int64(rhs.dimensions.height)
-
-                            return lhsArea < rhsArea
-                        }
-
-                        if let representation = largestRepresentation {
-                            capturedMediaType = "image"
-                            capturedMimeType = "image/jpeg"
-                            capturedWidth = representation.dimensions.width
-                            capturedHeight = representation.dimensions.height
-                            capturedFileSize = representation.resource.size
-                            localMediaPath = ghostModeCopyResource(
-                                mediaBox: mediaBox,
-                                resource: representation.resource,
-                                peerId: peerId,
-                                messageId: messageId,
-                                ext: "jpg"
-                            )
-                        }
+            for attribute in file.attributes {
+                switch attribute {
+                case let .Audio(attributeIsVoice, attributeDuration, _, _, _):
+                    capturedDuration = Double(attributeDuration)
+                    if attributeIsVoice {
+                        isVoice = true
                     }
-
-                    if capturedFileSize == nil,
-                       let localMediaPath = localMediaPath,
-                       let fileAttributes = try? FileManager.default.attributesOfItem(atPath: localMediaPath),
-                       let size = fileAttributes[.size] as? NSNumber {
-                        capturedFileSize = size.int64Value
+                case let .Video(attributeDuration, dimensions, flags, _, _, _):
+                    hasVideoAttribute = true
+                    capturedDuration = attributeDuration
+                    capturedWidth = dimensions.width
+                    capturedHeight = dimensions.height
+                    if flags.contains(.instantRoundVideo) {
+                        isRoundVideo = true
                     }
+                case let .ImageSize(dimensions):
+                    capturedWidth = dimensions.width
+                    capturedHeight = dimensions.height
+                case .Animated:
+                    isAnimated = true
+                default:
+                    break
                 }
+            }
 
-                var userInfo: [String: Any] = [
-                    "messageId": Int64(message.id.id),
-                    "peerId": message.id.peerId.toInt64(),
-                    "authorId": message.author?.id.toInt64() as Any,
-                    "text": saveDeletedMessages ? message.text : "",
-                    "date": message.timestamp,
-                    "mediaSummary": mediaSummary as Any,
-                    "flags": message.flags.rawValue,
-                    "namespace": message.id.namespace,
-                    "stableId": message.stableId
-                ]
+            let normalizedMimeType = file.mimeType.lowercased()
+            if isRoundVideo {
+                capturedMediaType = "round"
+            } else if isVoice {
+                capturedMediaType = "voice"
+            } else if isAnimated || normalizedMimeType == "image/gif" {
+                capturedMediaType = "gif"
+            } else if hasVideoAttribute || normalizedMimeType.hasPrefix("video/") {
+                capturedMediaType = "video"
+            } else {
+                capturedMediaType = "file"
+            }
 
-                if let localMediaPath = localMediaPath {
-                    userInfo["localMediaPath"] = localMediaPath
-                }
-                if let capturedMediaType = capturedMediaType {
-                    userInfo["mediaType"] = capturedMediaType
-                }
-                if let capturedMimeType = capturedMimeType {
-                    userInfo["mimeType"] = capturedMimeType
-                }
-                if let capturedFileName = capturedFileName {
-                    userInfo["fileName"] = capturedFileName
-                }
-                if let capturedFileSize = capturedFileSize {
-                    userInfo["fileSize"] = capturedFileSize
-                }
-                if let capturedDuration = capturedDuration {
-                    userInfo["duration"] = capturedDuration
-                }
-                if let capturedWidth = capturedWidth {
-                    userInfo["width"] = capturedWidth
-                }
-                if let capturedHeight = capturedHeight {
-                    userInfo["height"] = capturedHeight
-                }
+            localMediaPath = ghostModeCopyResource(
+                mediaBox: mediaBox,
+                resource: file.resource,
+                peerId: peerId,
+                messageId: messageId,
+                ext: ghostModeFileExtension(file)
+            )
+        } else if let image = message.media.first(where: { $0 is TelegramMediaImage }) as? TelegramMediaImage {
+            let largestRepresentation = image.representations.max { lhs, rhs in
+                let lhsArea = Int64(lhs.dimensions.width) * Int64(lhs.dimensions.height)
+                let rhsArea = Int64(rhs.dimensions.width) * Int64(rhs.dimensions.height)
+                return lhsArea < rhsArea
+            }
 
-                NotificationCenter.default.post(
-                    name: Notification.Name("GhostModeCaptureDeletedMessage"),
-                    object: nil,
-                    userInfo: userInfo
+            if let representation = largestRepresentation {
+                capturedMediaType = "image"
+                capturedMimeType = "image/jpeg"
+                capturedWidth = representation.dimensions.width
+                capturedHeight = representation.dimensions.height
+                capturedFileSize = representation.resource.size
+                localMediaPath = ghostModeCopyResource(
+                    mediaBox: mediaBox,
+                    resource: representation.resource,
+                    peerId: peerId,
+                    messageId: messageId,
+                    ext: "jpg"
                 )
+            }
+        }
+
+        if capturedFileSize == nil,
+           let localMediaPath = localMediaPath,
+           let fileAttributes = try? FileManager.default.attributesOfItem(atPath: localMediaPath),
+           let size = fileAttributes[.size] as? NSNumber {
+            capturedFileSize = size.int64Value
+        }
+    }
+
+    // Do not persist a media-only record if its source was not available in MediaBox.
+    if !saveText && localMediaPath == nil { return }
+
+    var userInfo: [String: Any] = [
+        "messageId": Int64(message.id.id),
+        "peerId": message.id.peerId.toInt64(),
+        "authorId": message.author?.id.toInt64() as Any,
+        "text": saveText ? message.text : "",
+        "date": message.timestamp,
+        "mediaSummary": mediaSummary as Any,
+        "flags": message.flags.rawValue,
+        "namespace": message.id.namespace,
+        "stableId": message.stableId
+    ]
+    if let localMediaPath { userInfo["localMediaPath"] = localMediaPath }
+    if let capturedMediaType { userInfo["mediaType"] = capturedMediaType }
+    if let capturedMimeType { userInfo["mimeType"] = capturedMimeType }
+    if let capturedFileName { userInfo["fileName"] = capturedFileName }
+    if let capturedFileSize { userInfo["fileSize"] = capturedFileSize }
+    if let capturedDuration { userInfo["duration"] = capturedDuration }
+    if let capturedWidth { userInfo["width"] = capturedWidth }
+    if let capturedHeight { userInfo["height"] = capturedHeight }
+
+    NotificationCenter.default.post(
+        name: Notification.Name("GhostModeCaptureDeletedMessage"),
+        object: nil,
+        userInfo: userInfo
+    )
+}
+
+
+public func _internal_deleteMessages(transaction: Transaction, mediaBox: MediaBox, ids: [MessageId], deleteMedia: Bool = true, manualAddMessageThreadStatsDifference: ((MessageThreadKey, Int, Int) -> Void)? = nil, captureGhostMode: Bool = true) {
+    // Capture before media resource cleanup and message removal.
+    if captureGhostMode {
+        let saveDeletedMessages = UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMessages")
+        let saveDeletedMedia = UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMedia")
+        if saveDeletedMessages || saveDeletedMedia {
+            for id in ids {
+                if let message = transaction.getMessage(id) {
+                    ghostModeCaptureMessageSnapshot(
+                        message: message,
+                        mediaBox: mediaBox,
+                        saveText: saveDeletedMessages,
+                        saveMedia: saveDeletedMedia
+                    )
+                }
             }
         }
     }

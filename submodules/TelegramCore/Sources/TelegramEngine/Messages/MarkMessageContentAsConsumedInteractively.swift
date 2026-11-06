@@ -7,11 +7,13 @@ func _internal_markMessageContentAsConsumedInteractively(postbox: Postbox, messa
     return postbox.transaction { transaction -> Void in
         if let message = transaction.getMessage(messageId), message.flags.contains(.Incoming) {
             var updateMessage = false
+            var shouldCaptureExpiringMedia = false
             var updatedAttributes = message.attributes
             
             for i in 0 ..< updatedAttributes.count {
                 if let attribute = updatedAttributes[i] as? ConsumableContentMessageAttribute {
                     if !attribute.consumed {
+                        shouldCaptureExpiringMedia = true
                         updatedAttributes[i] = ConsumableContentMessageAttribute(consumed: true)
                         updateMessage = true
                         
@@ -51,6 +53,7 @@ func _internal_markMessageContentAsConsumedInteractively(postbox: Postbox, messa
             for i in 0 ..< updatedAttributes.count {
                 if let attribute = updatedAttributes[i] as? AutoremoveTimeoutMessageAttribute {
                     if attribute.countdownBeginTime == nil || attribute.countdownBeginTime == 0 {
+                        shouldCaptureExpiringMedia = true
                         var timeout = attribute.timeout
                         if let duration = message.secretMediaDuration {
                             timeout = max(timeout, Int32(duration))
@@ -82,6 +85,7 @@ func _internal_markMessageContentAsConsumedInteractively(postbox: Postbox, messa
                     }
                 } else if let attribute = updatedAttributes[i] as? AutoclearTimeoutMessageAttribute {
                     if attribute.countdownBeginTime == nil || attribute.countdownBeginTime == 0 {
+                        shouldCaptureExpiringMedia = true
                         var timeout = attribute.timeout
                         if let duration = message.secretMediaDuration, timeout != viewOnceTimeout {
                             timeout = max(timeout, Int32(duration))
@@ -114,6 +118,15 @@ func _internal_markMessageContentAsConsumedInteractively(postbox: Postbox, messa
                 }
             }
             
+            if shouldCaptureExpiringMedia && UserDefaults.standard.bool(forKey: "GhostMode.saveExpiringMedia") {
+                ghostModeCaptureMessageSnapshot(
+                    message: message,
+                    mediaBox: postbox.mediaBox,
+                    saveText: UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMessages"),
+                    saveMedia: true
+                )
+            }
+
             if updateMessage {
                 transaction.updateMessage(message.id, update: { currentMessage in
                     var storeForwardInfo: StoreMessageForwardInfo?

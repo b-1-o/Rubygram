@@ -446,7 +446,7 @@ func chatHistoryEntriesForView(
             }
         }
         
-        if skipViewOnceMedia, let minAutoremoveOrClearTimeout = message.minAutoremoveOrClearTimeout {
+        if skipViewOnceMedia && !UserDefaults.standard.bool(forKey: "GhostMode.saveExpiringMedia"), let minAutoremoveOrClearTimeout = message.minAutoremoveOrClearTimeout {
             if minAutoremoveOrClearTimeout <= 60 {
                 continue loop
             }
