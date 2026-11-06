@@ -501,6 +501,11 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
     }
     
     private let historyDisposable = MetaDisposable()
+    private var ghostModeSnapshotsCache: [Int64: [GhostModeDeletedMessage]] = [:]
+    private var ghostModeCaptureObserver: NSObjectProtocol?
+    private var ghostModeAccountObserver: NSObjectProtocol?
+    private var ghostModeLoadedAccountId: String?
+    private var ghostModeSnapshotLoadGeneration: UInt64 = 0
     private let readHistoryDisposable = MetaDisposable()
     
     private var dequeuedInitialTransitionOnLayout = false
@@ -1069,6 +1074,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             self.chatHistoryLocationValue = ChatHistoryLocationInput(content: .Initial(count: historyMessageCount), id: 0)
         }
         self.chatHistoryLocationPromise.set(self.chatHistoryLocationValue!)
+        self.setupGhostModeObservers()
         
         self.listView.generalScrollDirectionUpdated = { [weak self] direction in
             guard let strongSelf = self else {
@@ -1288,6 +1294,8 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
     
     deinit {
         self.historyDisposable.dispose()
+        if let observer = self.ghostModeCaptureObserver { NotificationCenter.default.removeObserver(observer) }
+        if let observer = self.ghostModeAccountObserver { NotificationCenter.default.removeObserver(observer) }
         self.readHistoryDisposable.dispose()
         self.interactiveReadActionDisposable?.dispose()
         self.interactiveReadReactionsDisposable?.dispose()
@@ -1311,6 +1319,67 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
         }
     }
     
+    private func setupGhostModeObservers() {
+        // Initialize Manager first so its observer queues Storage.insert before our fetchAll.
+        let manager = GhostModeSettingsManager.shared
+        self.ghostModeAccountObserver = NotificationCenter.default.addObserver(
+            forName: .ghostModeAccountDidLoad, object: nil, queue: .main
+        ) { [weak self] _ in self?.handleGhostModeAccountDidLoad() }
+        self.ghostModeCaptureObserver = NotificationCenter.default.addObserver(
+            forName: Notification.Name("GhostModeCaptureDeletedMessage"), object: nil, queue: .main
+        ) { [weak self] notification in
+            guard let self, let peerId = notification.userInfo?["peerId"] as? Int64,
+                  self.chatLocation.peerId?.toInt64() == peerId else { return }
+            // TODO(4.2+): filter by threadId when snapshot supports it.
+            self.loadGhostModeSnapshots(for: peerId)
+        }
+        if manager.isLoaded { self.handleGhostModeAccountDidLoad() }
+    }
+
+    private func handleGhostModeAccountDidLoad() {
+        let manager = GhostModeSettingsManager.shared
+        guard manager.isLoaded else { return }
+        let accountId = manager.activeAccountId
+        if self.ghostModeLoadedAccountId != accountId {
+            self.ghostModeSnapshotLoadGeneration &+= 1
+            self.ghostModeSnapshotsCache.removeAll()
+            self.ghostModeLoadedAccountId = accountId
+        }
+        if let peerId = self.chatLocation.peerId {
+            self.loadGhostModeSnapshots(for: peerId.toInt64())
+        }
+    }
+
+    private func loadGhostModeSnapshots(for peerId: Int64) {
+        let manager = GhostModeSettingsManager.shared
+        guard manager.isLoaded else { return }
+        let accountId = manager.activeAccountId
+        if self.ghostModeLoadedAccountId != accountId {
+            self.ghostModeSnapshotLoadGeneration &+= 1
+            self.ghostModeSnapshotsCache.removeAll()
+            self.ghostModeLoadedAccountId = accountId
+        }
+        self.ghostModeSnapshotLoadGeneration &+= 1
+        let generation = self.ghostModeSnapshotLoadGeneration
+        GhostModeDeletedMessagesStorage.shared.fetchAll(peerId: peerId) { [weak self] snapshots in
+            guard let self,
+                  self.ghostModeSnapshotLoadGeneration == generation,
+                  self.chatLocation.peerId?.toInt64() == peerId,
+                  GhostModeSettingsManager.shared.isLoaded,
+                  GhostModeSettingsManager.shared.activeAccountId == accountId else { return }
+            if self.ghostModeSnapshotsCache[peerId] != snapshots {
+                self.ghostModeSnapshotsCache[peerId] = snapshots
+                self.refreshGhostModeHistory()
+            }
+        }
+    }
+
+    private func refreshGhostModeHistory() {
+        guard var location = self.chatHistoryLocationValue else { return }
+        location.id += 1
+        self.chatHistoryLocationValue = location
+    }
+
     public func updateTag(tag: HistoryViewInputTag?) {
         if self.tag == tag {
             return
@@ -1324,7 +1393,16 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
         if self.chatLocation == chatLocation {
             return
         }
+        let previousPeerId = self.chatLocation.peerId
         self.chatLocation = chatLocation
+        let nextPeerId = self.chatLocation.peerId
+        if previousPeerId != nextPeerId {
+            self.ghostModeSnapshotLoadGeneration &+= 1
+            if let previousPeerId { self.ghostModeSnapshotsCache.removeValue(forKey: previousPeerId.toInt64()) }
+            if let nextPeerId, GhostModeSettingsManager.shared.isLoaded {
+                self.loadGhostModeSnapshots(for: nextPeerId.toInt64())
+            }
+        }
         
         self.interactiveReadActionDisposable?.dispose()
         self.interactiveReadActionDisposable = nil
