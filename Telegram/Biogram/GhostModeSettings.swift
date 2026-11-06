@@ -8,6 +8,7 @@ public struct GhostModeSettings: Codable, Equatable {
     public var dontSendTyping: Bool
     public var dontSendUploadProgress: Bool
     public var saveDeletedMessages: Bool
+    public var saveDeletedMedia: Bool
     public var saveExpiringMedia: Bool
 
     public init(
@@ -16,6 +17,7 @@ public struct GhostModeSettings: Codable, Equatable {
         dontSendTyping: Bool = false,
         dontSendUploadProgress: Bool = false,
         saveDeletedMessages: Bool = false,
+        saveDeletedMedia: Bool = false,
         saveExpiringMedia: Bool = false
     ) {
         self.dontReadMessages = dontReadMessages
@@ -23,6 +25,7 @@ public struct GhostModeSettings: Codable, Equatable {
         self.dontSendTyping = dontSendTyping
         self.dontSendUploadProgress = dontSendUploadProgress
         self.saveDeletedMessages = saveDeletedMessages
+        self.saveDeletedMedia = saveDeletedMedia
         self.saveExpiringMedia = saveExpiringMedia
     }
 
