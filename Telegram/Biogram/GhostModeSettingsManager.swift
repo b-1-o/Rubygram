@@ -71,6 +71,7 @@ public final class GhostModeSettingsManager {
 
                 self.cachedSettings = settings
                 self.loadedAccountId = accountId
+                Self.syncRuntimeFlags(settings)
 
                 NotificationCenter.default.post(name: .ghostModeAccountDidLoad, object: self)
                 NotificationCenter.default.post(name: .ghostModeSettingsDidChange, object: self)
@@ -100,6 +101,7 @@ public final class GhostModeSettingsManager {
         }
 
         self.cachedSettings = next
+        Self.syncRuntimeFlags(next)
         NotificationCenter.default.post(name: .ghostModeSettingsDidChange, object: self)
 
         self.storage.save(next) {
@@ -131,5 +133,16 @@ public final class GhostModeSettingsManager {
 
     public func setSaveExpiringMedia(_ value: Bool, completion: (() -> Void)? = nil) {
         self.updateSettings({ $0.saveExpiringMedia = value }, completion: completion)
+    }
+
+    /// Mirrors settings into UserDefaults so TelegramCore can read flags without importing Biogram.
+    private static func syncRuntimeFlags(_ settings: GhostModeSettings) {
+        let defaults = UserDefaults.standard
+        defaults.set(settings.dontReadMessages, forKey: "GhostMode.dontReadMessages")
+        defaults.set(settings.dontSendOnline, forKey: "GhostMode.dontSendOnline")
+        defaults.set(settings.dontSendTyping, forKey: "GhostMode.dontSendTyping")
+        defaults.set(settings.dontSendUploadProgress, forKey: "GhostMode.dontSendUploadProgress")
+        defaults.set(settings.saveDeletedMessages, forKey: "GhostMode.saveDeletedMessages")
+        defaults.set(settings.saveExpiringMedia, forKey: "GhostMode.saveExpiringMedia")
     }
 }
