@@ -163,6 +163,10 @@ public final class GhostModeSettingsManager {
         self.updateSettings({ $0.saveDeletedMessages = value }, completion: completion)
     }
 
+    public func setSaveDeletedMedia(_ value: Bool, completion: (() -> Void)? = nil) {
+        self.updateSettings({ $0.saveDeletedMedia = value }, completion: completion)
+    }
+
     public func setSaveExpiringMedia(_ value: Bool, completion: (() -> Void)? = nil) {
         self.updateSettings({ $0.saveExpiringMedia = value }, completion: completion)
     }
@@ -175,6 +179,7 @@ public final class GhostModeSettingsManager {
         defaults.set(settings.dontSendTyping, forKey: "GhostMode.dontSendTyping")
         defaults.set(settings.dontSendUploadProgress, forKey: "GhostMode.dontSendUploadProgress")
         defaults.set(settings.saveDeletedMessages, forKey: "GhostMode.saveDeletedMessages")
+        defaults.set(settings.saveDeletedMedia, forKey: "GhostMode.saveDeletedMedia")
         defaults.set(settings.saveExpiringMedia, forKey: "GhostMode.saveExpiringMedia")
     }
 }
