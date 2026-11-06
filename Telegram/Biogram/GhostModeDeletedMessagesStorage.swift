@@ -9,6 +9,7 @@ public struct GhostModeDeletedMessage: Codable, Equatable, Identifiable {
     public var text: String
     public var date: Int32
     public var mediaSummary: String?
+    public var localMediaPath: String?
     public var deletedAt: TimeInterval
 
     public init(
@@ -19,6 +20,7 @@ public struct GhostModeDeletedMessage: Codable, Equatable, Identifiable {
         text: String,
         date: Int32,
         mediaSummary: String?,
+        localMediaPath: String? = nil,
         deletedAt: TimeInterval = Date().timeIntervalSince1970
     ) {
         self.id = id
@@ -28,6 +30,7 @@ public struct GhostModeDeletedMessage: Codable, Equatable, Identifiable {
         self.text = text
         self.date = date
         self.mediaSummary = mediaSummary
+        self.localMediaPath = localMediaPath
         self.deletedAt = deletedAt
     }
 }
