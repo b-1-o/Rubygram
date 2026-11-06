@@ -77,33 +77,26 @@ private final class ManagedLocalTypingActivitiesContext {
 
 func managedLocalTypingActivities(activities: Signal<[PeerActivitySpace: [(PeerId, PeerInputActivityRecord)]], NoError>, postbox: Postbox, network: Network, accountPeerId: PeerId) -> Signal<Void, NoError> {
     return Signal { subscriber in
-        let context = Atomic(value: ManagedLocalTypingActivitiesContext())
-        let disposable = activities.start(next: { activities in
-            let (start, dispose) = context.with { context in
-                return context.update(activities: activities)
-            }
-            
+        let context = ManagedLocalTypingActivitiesContext()
+        let disposable = activities.start(next: { peerActivities in
+            let (start, dispose) = context.update(activities: peerActivities)
             for disposable in dispose {
                 disposable.dispose()
             }
-            
             for (peerId, activity, disposable) in start {
-                var threadId: Int64?
+                let threadId: Int64?
                 switch peerId.category {
-                case let .thread(id):
-                    threadId = id
-                default:
-                    break
+                case .global, .voiceChat:
+                    threadId = nil
+                case let .thread(value):
+                    threadId = value
                 }
                 disposable.set(requestActivity(postbox: postbox, network: network, accountPeerId: accountPeerId, peerId: peerId.peerId, threadId: threadId, activity: activity?.activity).start())
             }
         })
         return ActionDisposable {
             disposable.dispose()
-            
-            context.with { context -> Void in
-                context.dispose()
-            }
+            context.dispose()
         }
     }
 }
@@ -113,28 +106,26 @@ private func actionFromActivity(_ activity: PeerInputActivity?) -> Api.SendMessa
         switch activity {
             case .typingText:
                 return .sendMessageTypingAction
+            case .uploadingFile:
+                return .sendMessageUploadDocumentAction(progress: 0)
             case .recordingVoice:
                 return .sendMessageRecordAudioAction
-            case .playingGame:
-                return .sendMessageGamePlayAction
-            case let .uploadingFile(progress):
-                return .sendMessageUploadDocumentAction(.init(progress: progress))
-            case let .uploadingPhoto(progress):
-                return .sendMessageUploadPhotoAction(.init(progress: progress))
-            case let .uploadingVideo(progress):
-                return .sendMessageUploadVideoAction(.init(progress: progress))
+            case .uploadingVoice:
+                return .sendMessageUploadAudioAction(progress: 0)
             case .recordingInstantVideo:
                 return .sendMessageRecordRoundAction
-            case let .uploadingInstantVideo(progress):
-                return .sendMessageUploadRoundAction(.init(progress: progress))
+            case .uploadingInstantVideo:
+                return .sendMessageUploadRoundAction(progress: 0)
+            case .playingGame:
+                return .sendMessageGamePlayAction
+            case let .interactingWithEmoji(emoticon, messageId, interaction):
+                return .sendMessageEmojiInteraction(emoticon: emoticon, msgId: messageId.id, interaction: .media(data: interaction.data))
             case .speakingInGroupCall:
-                return .speakingInGroupCallAction
+                return .speakingInGroupCallAction(randomId: 0)
             case .choosingSticker:
                 return .sendMessageChooseStickerAction
-            case let .interactingWithEmoji(emoticon, messageId, interaction):
-                return .sendMessageEmojiInteraction(.init(emoticon: emoticon, msgId: messageId.id, interaction: interaction?.apiDataJson ?? .dataJSON(.init(data: ""))))
-            case let .seeingEmojiInteraction(emoticon):
-                return .sendMessageEmojiInteractionSeen(.init(emoticon: emoticon))
+            case let .interactingWithDocument(documentId, messageId, interaction):
+                return .sendMessageEmojiInteractionSeen(emoticon: "")
         }
     } else {
         return .sendMessageCancelAction
@@ -142,6 +133,10 @@ private func actionFromActivity(_ activity: PeerInputActivity?) -> Api.SendMessa
 }
 
 private func requestActivity(postbox: Postbox, network: Network, accountPeerId: PeerId, peerId: PeerId, threadId: Int64?, activity: PeerInputActivity?) -> Signal<Void, NoError> {
+    // Ghost Mode: suppress outgoing typing / input activity when enabled.
+    if UserDefaults.standard.bool(forKey: "GhostMode.dontSendTyping") {
+        return .complete()
+    }
     return postbox.transaction { transaction -> Signal<Void, NoError> in
         if let peer = transaction.getPeer(peerId) {
             if peerId == accountPeerId {
