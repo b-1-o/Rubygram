@@ -1,0 +1,135 @@
+import Foundation
+
+public extension Notification.Name {
+    static let ghostModeSettingsDidChange = Notification.Name("GhostModeSettingsDidChange")
+    static let ghostModeAccountDidLoad = Notification.Name("GhostModeAccountDidLoad")
+}
+
+/// Singleton manager that exposes current Ghost Mode settings for the active Telegram account.
+/// Settings are local-only and stored separately for every account.
+public final class GhostModeSettingsManager {
+    public static let shared = GhostModeSettingsManager()
+
+    private let storage: GhostModeStorage
+
+    private var currentAccountId: String = "default"
+    private var switchGeneration: UInt64 = 0
+    private var loadedAccountId: String?
+
+    private var cachedSettings: GhostModeSettings = .defaultValue
+
+    private init(storageBase: URL? = nil) {
+        self.storage = GhostModeStorage(baseDirectory: storageBase)
+    }
+
+    // MARK: - Account
+
+    public var isLoaded: Bool {
+        return self.loadedAccountId != nil && self.loadedAccountId == self.currentAccountId
+    }
+
+    public var activeAccountId: String {
+        return self.currentAccountId
+    }
+
+    /// Current settings for the active account. Safe to read from any thread after load.
+    public var settings: GhostModeSettings {
+        return self.cachedSettings
+    }
+
+    /// Switch local Ghost Mode state to a Telegram account.
+    /// Completion is called on the main queue after JSON is loaded.
+    public func switchToAccount(accountId: String, completion: (() -> Void)? = nil) {
+        if !Thread.isMainThread {
+            DispatchQueue.main.async { [weak self] in
+                self?.switchToAccount(accountId: accountId, completion: completion)
+            }
+            return
+        }
+
+        if accountId == self.loadedAccountId {
+            completion?()
+            return
+        }
+
+        self.currentAccountId = accountId
+        self.switchGeneration &+= 1
+        let generation = self.switchGeneration
+
+        self.storage.setCurrentAccountId(accountId)
+
+        self.storage.load(for: accountId) { [weak self] settings in
+            guard let self else { return }
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+
+                guard generation == self.switchGeneration,
+                      accountId == self.currentAccountId else {
+                    return
+                }
+
+                self.cachedSettings = settings
+                self.loadedAccountId = accountId
+
+                NotificationCenter.default.post(name: .ghostModeAccountDidLoad, object: self)
+                NotificationCenter.default.post(name: .ghostModeSettingsDidChange, object: self)
+
+                completion?()
+            }
+        }
+    }
+
+    /// Call as early as possible when AccountContext is ready (app launch / account switch).
+    /// Safe to call repeatedly.
+    public func ensureAccountLoaded(accountId: String, completion: (() -> Void)? = nil) {
+        self.switchToAccount(accountId: accountId, completion: completion)
+    }
+
+    // MARK: - Mutations
+
+    public func updateSettings(_ transform: (inout GhostModeSettings) -> Void, completion: (() -> Void)? = nil) {
+        assert(Thread.isMainThread)
+
+        var next = self.cachedSettings
+        transform(&next)
+
+        guard next != self.cachedSettings else {
+            completion?()
+            return
+        }
+
+        self.cachedSettings = next
+        NotificationCenter.default.post(name: .ghostModeSettingsDidChange, object: self)
+
+        self.storage.save(next) {
+            DispatchQueue.main.async {
+                completion?()
+            }
+        }
+    }
+
+    public func setDontReadMessages(_ value: Bool, completion: (() -> Void)? = nil) {
+        self.updateSettings({ $0.dontReadMessages = value }, completion: completion)
+    }
+
+    public func setDontSendOnline(_ value: Bool, completion: (() -> Void)? = nil) {
+        self.updateSettings({ $0.dontSendOnline = value }, completion: completion)
+    }
+
+    public func setDontSendTyping(_ value: Bool, completion: (() -> Void)? = nil) {
+        self.updateSettings({ $0.dontSendTyping = value }, completion: completion)
+    }
+
+    public func setDontSendUploadProgress(_ value: Bool, completion: (() -> Void)? = nil) {
+        self.updateSettings({ $0.dontSendUploadProgress = value }, completion: completion)
+    }
+
+    public func setSaveDeletedMessages(_ value: Bool, completion: (() -> Void)? = nil) {
+        self.updateSettings({ $0.saveDeletedMessages = value }, completion: completion)
+    }
+
+    public func setSaveExpiringMedia(_ value: Bool, completion: (() -> Void)? = nil) {
+        self.updateSettings({ $0.saveExpiringMedia = value }, completion: completion)
+    }
+}
