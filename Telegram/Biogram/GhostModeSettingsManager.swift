@@ -38,6 +38,9 @@ public final class GhostModeSettingsManager {
             let date = (info["date"] as? Int32) ?? 0
             let mediaSummary = info["mediaSummary"] as? String
             let localMediaPath = info["localMediaPath"] as? String
+            let namespace = info["namespace"] as? Int32
+            let flags = info["flags"] as? Int32
+            let stableId = info["stableId"] as? UInt32
             if let accountId = self?.currentAccountId {
                 GhostModeDeletedMessagesStorage.shared.setAccountId(accountId)
             }
@@ -49,7 +52,10 @@ public final class GhostModeSettingsManager {
                     text: text,
                     date: date,
                     mediaSummary: mediaSummary,
-                    localMediaPath: localMediaPath
+                    localMediaPath: localMediaPath,
+                    namespace: namespace,
+                    flags: flags,
+                    stableId: stableId
                 )
             )
         }
