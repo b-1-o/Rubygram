@@ -5,6 +5,7 @@ import SwiftSignalKit
 import Display
 import AsyncDisplayKit
 import TelegramCore
+import Biogram
 import TelegramPresentationData
 import TelegramUIPreferences
 import MediaResources
@@ -2559,7 +2560,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             if apply {
                 switch strongSelf.chatLocation {
                 case .peer, .replyThread:
-                    if !strongSelf.context.sharedContext.immediateExperimentalUISettings.skipReadHistory && !strongSelf.context.account.isSupportUser {
+                    if !strongSelf.context.sharedContext.immediateExperimentalUISettings.skipReadHistory && !strongSelf.context.account.isSupportUser && !GhostModeSettingsManager.shared.settings.dontReadMessages {
                         strongSelf.context.applyMaxReadIndex(for: strongSelf.chatLocation, contextHolder: strongSelf.chatLocationContextHolder, messageIndex: messageIndex)
                     }
                 case .customChatContents:
@@ -4695,7 +4696,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                     self.interactiveReadActionDisposable = nil
                 }
             } else if self.interactiveReadActionDisposable == nil {
-                if !self.context.sharedContext.immediateExperimentalUISettings.skipReadHistory && !self.context.account.isSupportUser {
+                if !self.context.sharedContext.immediateExperimentalUISettings.skipReadHistory && !self.context.account.isSupportUser && !GhostModeSettingsManager.shared.settings.dontReadMessages {
                     if case let .peer(peerId) = self.chatLocation {
                         self.interactiveReadActionDisposable = self.context.engine.messages.installInteractiveReadMessagesAction(peerId: peerId, threadId: nil)
                     } else if case let .replyThread(replyThread) = self.chatLocation, (replyThread.isForumPost || replyThread.isMonoforumPost) {
