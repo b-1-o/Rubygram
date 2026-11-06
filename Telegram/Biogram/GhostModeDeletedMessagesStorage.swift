@@ -14,6 +14,13 @@ public struct GhostModeDeletedMessage: Codable, Equatable, Identifiable {
     public var stableId: UInt32?
     public var mediaSummary: String?
     public var localMediaPath: String?
+    public var mediaType: String?
+    public var mimeType: String?
+    public var fileName: String?
+    public var fileSize: Int64?
+    public var duration: Double?
+    public var width: Int32?
+    public var height: Int32?
     public var deletedAt: TimeInterval
 
     public init(
@@ -25,6 +32,13 @@ public struct GhostModeDeletedMessage: Codable, Equatable, Identifiable {
         date: Int32,
         mediaSummary: String?,
         localMediaPath: String? = nil,
+        mediaType: String? = nil,
+        mimeType: String? = nil,
+        fileName: String? = nil,
+        fileSize: Int64? = nil,
+        duration: Double? = nil,
+        width: Int32? = nil,
+        height: Int32? = nil,
         deletedAt: TimeInterval = Date().timeIntervalSince1970,
         namespace: Int32? = nil,
         flags: UInt32? = nil,
@@ -41,6 +55,13 @@ public struct GhostModeDeletedMessage: Codable, Equatable, Identifiable {
         self.stableId = stableId
         self.mediaSummary = mediaSummary
         self.localMediaPath = localMediaPath
+        self.mediaType = mediaType
+        self.mimeType = mimeType
+        self.fileName = fileName
+        self.fileSize = fileSize
+        self.duration = duration
+        self.width = width
+        self.height = height
         self.deletedAt = deletedAt
     }
 }

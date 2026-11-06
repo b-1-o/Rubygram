@@ -413,7 +413,10 @@ swift_library(
     copts = [
         "-warnings-as-errors",
     ],
-    deps = [],
+    deps = [
+        "//submodules/Postbox:Postbox",
+        "//submodules/TelegramCore:TelegramCore",
+    ],
     visibility = [
         "//visibility:public",
     ],

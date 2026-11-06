@@ -48,6 +48,8 @@ private func ghostModeFileExtension(
         return "png"
     case "image/webp":
         return "webp"
+    case "image/gif":
+        return "gif"
     case "video/mp4":
         return "mp4"
     case "video/quicktime":
@@ -149,9 +151,15 @@ public func _internal_deleteMessages(transaction: Transaction, mediaBox: MediaBo
                 )
 
                 var localMediaPath: String? = nil
+                var capturedMediaType: String? = nil
+                var capturedMimeType: String? = nil
+                var capturedFileName: String? = nil
+                var capturedFileSize: Int64? = nil
+                var capturedDuration: Double? = nil
+                var capturedWidth: Int32? = nil
+                var capturedHeight: Int32? = nil
 
                 if saveDeletedMedia {
-
                     let peerId = message.id.peerId.toInt64()
                     let messageId = message.id.id
 
@@ -159,6 +167,52 @@ public func _internal_deleteMessages(transaction: Transaction, mediaBox: MediaBo
                     if let file = message.media.first(
                         where: { $0 is TelegramMediaFile }
                     ) as? TelegramMediaFile {
+                        capturedMimeType = file.mimeType
+                        capturedFileName = file.fileName
+                        capturedFileSize = file.size
+
+                        var isVoice = false
+                        var isRoundVideo = false
+                        var isAnimated = false
+                        var hasVideoAttribute = false
+
+                        for attribute in file.attributes {
+                            switch attribute {
+                            case let .Audio(attributeIsVoice, attributeDuration, _, _, _):
+                                capturedDuration = Double(attributeDuration)
+                                if attributeIsVoice {
+                                    isVoice = true
+                                }
+                            case let .Video(attributeDuration, dimensions, flags, _, _, _):
+                                hasVideoAttribute = true
+                                capturedDuration = attributeDuration
+                                capturedWidth = dimensions.width
+                                capturedHeight = dimensions.height
+                                if flags.contains(.instantRoundVideo) {
+                                    isRoundVideo = true
+                                }
+                            case let .ImageSize(dimensions):
+                                capturedWidth = dimensions.width
+                                capturedHeight = dimensions.height
+                            case .Animated:
+                                isAnimated = true
+                            default:
+                                break
+                            }
+                        }
+
+                        let normalizedMimeType = file.mimeType.lowercased()
+                        if isRoundVideo {
+                            capturedMediaType = "round"
+                        } else if isVoice {
+                            capturedMediaType = "voice"
+                        } else if isAnimated || normalizedMimeType == "image/gif" {
+                            capturedMediaType = "gif"
+                        } else if hasVideoAttribute || normalizedMimeType.hasPrefix("video/") {
+                            capturedMediaType = "video"
+                        } else {
+                            capturedMediaType = "file"
+                        }
 
                         localMediaPath = ghostModeCopyResource(
                             mediaBox: mediaBox,
@@ -167,11 +221,9 @@ public func _internal_deleteMessages(transaction: Transaction, mediaBox: MediaBo
                             messageId: messageId,
                             ext: ghostModeFileExtension(file)
                         )
-
                     } else if let image = message.media.first(
                         where: { $0 is TelegramMediaImage }
                     ) as? TelegramMediaImage {
-
                         let largestRepresentation = image.representations.max {
                             lhs, rhs in
 
@@ -187,6 +239,11 @@ public func _internal_deleteMessages(transaction: Transaction, mediaBox: MediaBo
                         }
 
                         if let representation = largestRepresentation {
+                            capturedMediaType = "image"
+                            capturedMimeType = "image/jpeg"
+                            capturedWidth = representation.dimensions.width
+                            capturedHeight = representation.dimensions.height
+                            capturedFileSize = representation.resource.size
                             localMediaPath = ghostModeCopyResource(
                                 mediaBox: mediaBox,
                                 resource: representation.resource,
@@ -195,6 +252,13 @@ public func _internal_deleteMessages(transaction: Transaction, mediaBox: MediaBo
                                 ext: "jpg"
                             )
                         }
+                    }
+
+                    if capturedFileSize == nil,
+                       let localMediaPath = localMediaPath,
+                       let fileAttributes = try? FileManager.default.attributesOfItem(atPath: localMediaPath),
+                       let size = fileAttributes[.size] as? NSNumber {
+                        capturedFileSize = size.int64Value
                     }
                 }
 
@@ -212,6 +276,27 @@ public func _internal_deleteMessages(transaction: Transaction, mediaBox: MediaBo
 
                 if let localMediaPath = localMediaPath {
                     userInfo["localMediaPath"] = localMediaPath
+                }
+                if let capturedMediaType = capturedMediaType {
+                    userInfo["mediaType"] = capturedMediaType
+                }
+                if let capturedMimeType = capturedMimeType {
+                    userInfo["mimeType"] = capturedMimeType
+                }
+                if let capturedFileName = capturedFileName {
+                    userInfo["fileName"] = capturedFileName
+                }
+                if let capturedFileSize = capturedFileSize {
+                    userInfo["fileSize"] = capturedFileSize
+                }
+                if let capturedDuration = capturedDuration {
+                    userInfo["duration"] = capturedDuration
+                }
+                if let capturedWidth = capturedWidth {
+                    userInfo["width"] = capturedWidth
+                }
+                if let capturedHeight = capturedHeight {
+                    userInfo["height"] = capturedHeight
                 }
 
                 NotificationCenter.default.post(

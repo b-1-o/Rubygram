@@ -38,6 +38,13 @@ public final class GhostModeSettingsManager {
             let date = (info["date"] as? Int32) ?? 0
             let mediaSummary = info["mediaSummary"] as? String
             let localMediaPath = info["localMediaPath"] as? String
+            let mediaType = info["mediaType"] as? String
+            let mimeType = info["mimeType"] as? String
+            let fileName = info["fileName"] as? String
+            let fileSize = info["fileSize"] as? Int64
+            let duration = info["duration"] as? Double
+            let width = info["width"] as? Int32
+            let height = info["height"] as? Int32
             let namespace = info["namespace"] as? Int32
             let flags = info["flags"] as? UInt32
             let stableId = info["stableId"] as? UInt32
@@ -53,6 +60,13 @@ public final class GhostModeSettingsManager {
                     date: date,
                     mediaSummary: mediaSummary,
                     localMediaPath: localMediaPath,
+                    mediaType: mediaType,
+                    mimeType: mimeType,
+                    fileName: fileName,
+                    fileSize: fileSize,
+                    duration: duration,
+                    width: width,
+                    height: height,
                     namespace: namespace,
                     flags: flags,
                     stableId: stableId

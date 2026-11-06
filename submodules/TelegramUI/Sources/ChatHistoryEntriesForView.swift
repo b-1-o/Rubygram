@@ -35,16 +35,55 @@ struct ChatHistoryEntriesForViewState {
 }
 
 
+/// Resolves Ghost Mode's copied file into a Telegram resource that can be consumed by
+/// the standard chat media pipeline. The resource's stable ID is derived from the saved path,
+/// so the same deleted-message snapshot resolves to the same MediaBox cache entry.
+///
+/// MediaBox does not read the custom resource's path property automatically. Its normal
+/// resource loader first looks for data in its own completed cache and otherwise invokes
+/// account-level fetchers for known Telegram resource types. A Ghost Mode resource is not
+/// one of those built-in fetcher types, so seed the completed cache from the already-copied
+/// local file before returning the resource to the message model.
+///
+/// The original file remains in Application Support/GhostMode/media. The MediaBox copy is
+/// only the display-side cache entry and can be recreated from that preserved source file.
+private func ghostModeLocalMediaResource(
+    from snapshot: GhostModeDeletedMessage,
+    mediaBox: MediaBox
+) -> GhostModeLocalMediaResource? {
+    guard let path = snapshot.localMediaPath,
+          FileManager.default.fileExists(atPath: path) else {
+        return nil
+    }
+
+    let resource = GhostModeLocalMediaResource(path: path)
+    if mediaBox.completedResourcePath(resource) == nil {
+        guard let data = try? Data(
+            contentsOf: URL(fileURLWithPath: path),
+            options: [.mappedIfSafe]
+        ) else {
+            return nil
+        }
+        mediaBox.storeResourceData(resource.id, data: data, synchronous: true)
+    }
+
+    guard mediaBox.completedResourcePath(resource) != nil else {
+        return nil
+    }
+    return resource
+}
+
 private func ghostModeMessage(
     from snapshot: GhostModeDeletedMessage,
     chatPeer: Peer,
-    peers: SimpleDictionary<PeerId, Peer>
+    peers: SimpleDictionary<PeerId, Peer>,
+    mediaBox: MediaBox
 ) -> Message? {
     guard snapshot.peerId != 0 else {
         return nil
     }
 
-    guard !snapshot.text.isEmpty else {
+    guard !snapshot.text.isEmpty || snapshot.localMediaPath != nil else {
         return nil
     }
 
@@ -77,6 +116,123 @@ private func ghostModeMessage(
         peers[PeerId($0)]
     }
 
+    var media: [Media] = []
+    if let resource = ghostModeLocalMediaResource(from: snapshot, mediaBox: mediaBox) {
+        let mediaType = snapshot.mediaType
+            ?? ((snapshot.mediaSummary ?? "").contains("TelegramMediaImage") ? "image" : "file")
+        let dimensions = PixelDimensions(
+            width: max(1, snapshot.width ?? 800),
+            height: max(1, snapshot.height ?? 600)
+        )
+        let duration = max(0.0, snapshot.duration ?? 0.0)
+
+        if mediaType == "image" {
+            let representation = TelegramMediaImageRepresentation(
+                dimensions: dimensions,
+                resource: resource,
+                progressiveSizes: [],
+                immediateThumbnailData: nil
+            )
+            let image = TelegramMediaImage(
+                imageId: MediaId(namespace: Namespaces.Media.LocalImage, id: snapshot.messageId),
+                representations: [representation],
+                immediateThumbnailData: nil,
+                reference: nil,
+                partialReference: nil,
+                flags: []
+            )
+            media = [image]
+        } else {
+            let sourceMimeType = snapshot.mimeType ?? ""
+            let mimeType: String
+            switch mediaType {
+            case "voice":
+                mimeType = sourceMimeType.lowercased().hasPrefix("audio/") ? sourceMimeType : "audio/ogg"
+            case "round", "video":
+                mimeType = sourceMimeType.lowercased().hasPrefix("video/") ? sourceMimeType : "video/mp4"
+            case "gif":
+                mimeType = sourceMimeType.isEmpty ? "image/gif" : sourceMimeType
+            default:
+                mimeType = sourceMimeType.isEmpty ? "application/octet-stream" : sourceMimeType
+            }
+
+            let fileName: String
+            switch mediaType {
+            case "voice":
+                fileName = snapshot.fileName ?? "voice.ogg"
+            case "round", "video":
+                fileName = snapshot.fileName ?? "video.mp4"
+            case "gif":
+                fileName = snapshot.fileName ?? "animation.gif"
+            default:
+                fileName = snapshot.fileName ?? "file"
+            }
+
+            var attributes: [TelegramMediaFileAttribute] = []
+            switch mediaType {
+            case "voice":
+                attributes.append(.Audio(
+                    isVoice: true,
+                    duration: Int(duration),
+                    title: nil,
+                    performer: nil,
+                    waveform: nil
+                ))
+            case "round":
+                attributes.append(.Video(
+                    duration: duration,
+                    size: dimensions,
+                    flags: .instantRoundVideo,
+                    preloadSize: nil,
+                    coverTime: nil,
+                    videoCodec: nil
+                ))
+            case "video":
+                attributes.append(.Video(
+                    duration: duration,
+                    size: dimensions,
+                    flags: [],
+                    preloadSize: nil,
+                    coverTime: nil,
+                    videoCodec: nil
+                ))
+            case "gif":
+                attributes.append(.Animated)
+                if mimeType.lowercased().hasPrefix("video/") {
+                    attributes.append(.Video(
+                        duration: duration,
+                        size: dimensions,
+                        flags: [],
+                        preloadSize: nil,
+                        coverTime: nil,
+                        videoCodec: nil
+                    ))
+                }
+            default:
+                break
+            }
+            attributes.append(.FileName(fileName: fileName))
+
+            let file = TelegramMediaFile(
+                fileId: MediaId(namespace: Namespaces.Media.LocalFile, id: snapshot.messageId),
+                partialReference: nil,
+                resource: resource,
+                previewRepresentations: [],
+                videoThumbnails: [],
+                immediateThumbnailData: nil,
+                mimeType: mimeType,
+                size: snapshot.fileSize ?? resource.size,
+                attributes: attributes,
+                alternativeRepresentations: []
+            )
+            media = [file]
+        }
+    }
+
+    guard !snapshot.text.isEmpty || !media.isEmpty else {
+        return nil
+    }
+
     return Message(
         stableId: stableId,
         stableVersion: 0,
@@ -99,7 +255,7 @@ private func ghostModeMessage(
         author: author,
         text: snapshot.text,
         attributes: [],
-        media: [],
+        media: media,
         peers: peers,
         associatedMessages: SimpleDictionary<MessageId, Message>(),
         associatedMessageIds: [],
@@ -559,7 +715,8 @@ func chatHistoryEntriesForView(
             guard let message = ghostModeMessage(
                 from: snapshot,
                 chatPeer: chatPeer,
-                peers: ghostPeerDictionary
+                peers: ghostPeerDictionary,
+                mediaBox: context.account.postbox.mediaBox
             ) else {
                 continue
             }
