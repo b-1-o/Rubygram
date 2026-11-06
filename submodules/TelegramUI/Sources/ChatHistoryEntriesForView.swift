@@ -2,6 +2,7 @@ import Foundation
 import UIKit
 import Postbox
 import TelegramCore
+import Biogram
 import TemporaryCachedPeerDataManager
 import Emoji
 import AccountContext
@@ -33,6 +34,81 @@ struct ChatHistoryEntriesForViewState {
     }
 }
 
+
+private func ghostModeMessage(
+    from snapshot: GhostModeDeletedMessage,
+    chatPeer: Peer,
+    peers: SimpleDictionary<PeerId, Peer>
+) -> Message? {
+    guard snapshot.peerId != 0 else {
+        return nil
+    }
+
+    guard !snapshot.text.isEmpty else {
+        return nil
+    }
+
+    let peerId = PeerId(snapshot.peerId)
+    guard chatPeer.id == peerId else {
+        return nil
+    }
+
+    let namespace = snapshot.namespace ?? Namespaces.Message.Cloud
+    let messageId = Int32(truncatingIfNeeded: snapshot.messageId)
+
+    let stableId: UInt32
+    if let original = snapshot.stableId {
+        stableId = original
+    } else {
+        stableId = UInt32.max - 2000
+            - UInt32(truncatingIfNeeded:
+                snapshot.messageId & 0x7FFFFFFF
+            )
+    }
+
+    let flags: MessageFlags
+    if let raw = snapshot.flags {
+        flags = MessageFlags(rawValue: raw)
+    } else {
+        flags = [.Incoming]
+    }
+
+    let author: Peer? = snapshot.authorId.flatMap {
+        peers[PeerId($0)]
+    }
+
+    return Message(
+        stableId: stableId,
+        stableVersion: 0,
+        id: MessageId(
+            peerId: peerId,
+            namespace: namespace,
+            id: messageId
+        ),
+        globallyUniqueId: nil,
+        groupingKey: nil,
+        groupInfo: nil,
+        threadId: nil,
+        timestamp: snapshot.date,
+        flags: flags,
+        tags: [],
+        globalTags: [],
+        localTags: [],
+        customTags: [],
+        forwardInfo: nil,
+        author: author,
+        text: snapshot.text,
+        attributes: [],
+        media: [],
+        peers: peers,
+        associatedMessages: SimpleDictionary<MessageId, Message>(),
+        associatedMessageIds: [],
+        associatedMedia: [:],
+        associatedThreadInfo: nil,
+        associatedStories: [:]
+    )
+}
+
 func chatHistoryEntriesForView(
     currentState: ChatHistoryEntriesForViewState,
     context: AccountContext,
@@ -60,7 +136,8 @@ func chatHistoryEntriesForView(
     adMessage: Message?,
     dynamicAdMessages: [Message],
     isMusicPlaylist: Bool,
-    pinToTopStableId: EngineMessage.StableId?
+    pinToTopStableId: EngineMessage.StableId?,
+    ghostSnapshots: [GhostModeDeletedMessage] = []
 ) -> ([ChatHistoryEntry], ChatHistoryEntriesForViewState) {
     var currentState = currentState
     
@@ -439,6 +516,106 @@ func chatHistoryEntriesForView(
         }
     }
         
+
+    // Ghost Mode: re-insert text-only deleted messages.
+    if !ghostSnapshots.isEmpty, let chatPeer = chatPeer {
+        var ghostPeers = cachedPeerDataPeers
+        ghostPeers[chatPeer.id] = chatPeer
+
+        let ghostPeerDictionary =
+            SimpleDictionary<PeerId, Peer>(ghostPeers)
+
+        var existingIds: Set<MessageId> = []
+
+        for entry in entries {
+            switch entry {
+            case let .MessageEntry(message, _, _, _, _, _):
+                existingIds.insert(message.id)
+
+            case let .MessageGroupEntry(_, messages, _):
+                for item in messages {
+                    existingIds.insert(item.0.id)
+                }
+
+            default:
+                break
+            }
+        }
+
+        let lowerTimestamp = view.entries.last?.message.timestamp
+        let upperTimestamp = view.entries.first?.message.timestamp
+
+        for snapshot in ghostSnapshots {
+            let fullId = MessageId(
+                peerId: PeerId(snapshot.peerId),
+                namespace: snapshot.namespace ?? Namespaces.Message.Cloud,
+                id: Int32(truncatingIfNeeded: snapshot.messageId)
+            )
+
+            guard !existingIds.contains(fullId) else {
+                continue
+            }
+
+            guard let message = ghostModeMessage(
+                from: snapshot,
+                chatPeer: chatPeer,
+                peers: ghostPeerDictionary
+            ) else {
+                continue
+            }
+
+            var insertAtPosition: Int?
+
+            if let lowerTimestamp = lowerTimestamp,
+               let upperTimestamp = upperTimestamp {
+                if message.timestamp >= lowerTimestamp
+                    && view.laterId == nil {
+                    insertAtPosition = entries.count
+                } else if message.timestamp < lowerTimestamp
+                    && message.timestamp > upperTimestamp {
+                    for i in 0..<entries.count {
+                        if let timestamp = entries[i].timestamp,
+                           timestamp > message.timestamp {
+                            insertAtPosition = i
+                            break
+                        }
+                    }
+                }
+            } else if view.entries.isEmpty {
+                insertAtPosition = entries.count
+            }
+
+            guard let insertAtPosition = insertAtPosition else {
+                continue
+            }
+
+            let attributes = ChatMessageEntryAttributes(
+                rank: nil,
+                isContact: false,
+                contentTypeHint: .generic,
+                updatingMedia: nil,
+                isPlaying: false,
+                isCentered: false,
+                authorStoryStats: nil,
+                displayContinueThreadFooter: false,
+                pinToTop: false,
+                isGhostDeleted: true
+            )
+
+            let ghostEntry = ChatHistoryEntry.MessageEntry(
+                message,
+                presentationData,
+                false,
+                nil,
+                .none,
+                attributes
+            )
+
+            entries.insert(ghostEntry, at: insertAtPosition)
+            existingIds.insert(fullId)
+        }
+    }
+
     if let maxReadIndex = view.maxReadIndex, includeUnreadEntry {
         var i = 0
         let unreadEntry: ChatHistoryEntry = .UnreadEntry(maxReadIndex, presentationData)
