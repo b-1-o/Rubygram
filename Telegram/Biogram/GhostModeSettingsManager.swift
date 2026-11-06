@@ -20,6 +20,37 @@ public final class GhostModeSettingsManager {
 
     private init(storageBase: URL? = nil) {
         self.storage = GhostModeStorage(baseDirectory: storageBase)
+        self.registerDeletedMessageCaptureObserver()
+    }
+
+    private func registerDeletedMessageCaptureObserver() {
+        NotificationCenter.default.addObserver(
+            forName: Notification.Name("GhostModeCaptureDeletedMessage"),
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMessages") else { return }
+            guard let info = notification.userInfo else { return }
+            let messageId = (info["messageId"] as? Int64) ?? 0
+            let peerId = (info["peerId"] as? Int64) ?? 0
+            let authorId = info["authorId"] as? Int64
+            let text = (info["text"] as? String) ?? ""
+            let date = (info["date"] as? Int32) ?? 0
+            let mediaSummary = info["mediaSummary"] as? String
+            if let accountId = self?.currentAccountId {
+                GhostModeDeletedMessagesStorage.shared.setAccountId(accountId)
+            }
+            GhostModeDeletedMessagesStorage.shared.insert(
+                GhostModeDeletedMessage(
+                    messageId: messageId,
+                    peerId: peerId,
+                    authorId: authorId,
+                    text: text,
+                    date: date,
+                    mediaSummary: mediaSummary
+                )
+            )
+        }
     }
 
     // MARK: - Account
@@ -72,6 +103,7 @@ public final class GhostModeSettingsManager {
                 self.cachedSettings = settings
                 self.loadedAccountId = accountId
                 Self.syncRuntimeFlags(settings)
+                GhostModeDeletedMessagesStorage.shared.setAccountId(accountId)
 
                 NotificationCenter.default.post(name: .ghostModeAccountDidLoad, object: self)
                 NotificationCenter.default.post(name: .ghostModeSettingsDidChange, object: self)
