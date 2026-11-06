@@ -292,3 +292,13 @@
 "GhostMode.SaveDeletedMessages.Description" = "Локальная копия, когда кто-то удаляет сообщение.";
 "GhostMode.SaveExpiringMedia" = "Сохранять самоуничтожающиеся фото/видео";
 "GhostMode.SaveExpiringMedia.Description" = "Локально сохранять медиа с таймером удаления.";
+
+/* Ghost Mode media and deleted messages */
+"GhostMode.SaveDeletedMedia" = "Сохранять удалённые медиа";
+"GhostMode.SaveDeletedMedia.Description" = "Сохранять фото, видео, голосовые и кружки из удалённых сообщений";
+"GhostMode.DeletedMessages.Title" = "Удалённые сообщения";
+"GhostMode.DeletedMessages.Empty" = "Пока нет перехваченных сообщений.";
+"GhostMode.DeletedMessages.Clear" = "Очистить всё";
+"GhostMode.DeletedMessages.View" = "Посмотреть удалённые";
+"GhostMode.DeletedMessages.ShowTabs" = "Показать табы";
+"GhostMode.DeletedMessages.ShowChats" = "Показать чаты";

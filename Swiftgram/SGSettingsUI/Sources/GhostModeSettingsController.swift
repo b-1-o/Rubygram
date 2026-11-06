@@ -48,6 +48,8 @@ private enum GhostModeEntryId: Hashable {
     case historyHeader
     case saveDeletedMessages
     case saveDeletedMessagesNotice
+    case saveDeletedMedia
+    case saveDeletedMediaNotice
     case viewDeletedMessages
     case saveExpiringMedia
     case saveExpiringMediaNotice
@@ -67,6 +69,8 @@ private enum GhostModeEntry: ItemListNodeEntry {
     case historyHeader
     case saveDeletedMessages(Bool)
     case saveDeletedMessagesNotice
+    case saveDeletedMedia(Bool)
+    case saveDeletedMediaNotice
     case viewDeletedMessages
     case saveExpiringMedia(Bool)
     case saveExpiringMediaNotice
@@ -80,7 +84,8 @@ private enum GhostModeEntry: ItemListNodeEntry {
              .dontSendOnline, .dontSendOnlineNotice,
              .dontSendUploadProgress, .dontSendUploadProgressNotice:
             return GhostModeSection.actions.rawValue
-        case .historyHeader, .saveDeletedMessages, .saveDeletedMessagesNotice, .viewDeletedMessages,
+        case .historyHeader, .saveDeletedMessages, .saveDeletedMessagesNotice,
+             .saveDeletedMedia, .saveDeletedMediaNotice, .viewDeletedMessages,
              .saveExpiringMedia, .saveExpiringMediaNotice:
             return GhostModeSection.history.rawValue
         }
@@ -101,6 +106,8 @@ private enum GhostModeEntry: ItemListNodeEntry {
         case .historyHeader: return .historyHeader
         case .saveDeletedMessages: return .saveDeletedMessages
         case .saveDeletedMessagesNotice: return .saveDeletedMessagesNotice
+        case .saveDeletedMedia: return .saveDeletedMedia
+        case .saveDeletedMediaNotice: return .saveDeletedMediaNotice
         case .viewDeletedMessages: return .viewDeletedMessages
         case .saveExpiringMedia: return .saveExpiringMedia
         case .saveExpiringMediaNotice: return .saveExpiringMediaNotice
@@ -210,6 +217,21 @@ private enum GhostModeEntry: ItemListNodeEntry {
                 text: .plain("GhostMode.SaveDeletedMessages.Description".i18n(lang)),
                 sectionId: self.section
             )
+        case let .saveDeletedMedia(value):
+            return ItemListSwitchItem(
+                presentationData: presentationData,
+                title: "GhostMode.SaveDeletedMedia".i18n(lang),
+                value: value,
+                sectionId: self.section,
+                style: .blocks,
+                updated: { arguments.setSaveDeletedMedia($0) }
+            )
+        case .saveDeletedMediaNotice:
+            return ItemListTextItem(
+                presentationData: presentationData,
+                text: .plain("GhostMode.SaveDeletedMedia.Description".i18n(lang)),
+                sectionId: self.section
+            )
         case .viewDeletedMessages:
             return ItemListDisclosureItem(
                 presentationData: presentationData,
@@ -244,6 +266,7 @@ private final class GhostModeArguments {
     let setDontSendOnline: (Bool) -> Void
     let setDontSendUploadProgress: (Bool) -> Void
     let setSaveDeletedMessages: (Bool) -> Void
+    let setSaveDeletedMedia: (Bool) -> Void
     let setSaveExpiringMedia: (Bool) -> Void
     let openDeletedMessages: () -> Void
 
@@ -253,6 +276,7 @@ private final class GhostModeArguments {
         setDontSendOnline: @escaping (Bool) -> Void,
         setDontSendUploadProgress: @escaping (Bool) -> Void,
         setSaveDeletedMessages: @escaping (Bool) -> Void,
+        setSaveDeletedMedia: @escaping (Bool) -> Void,
         setSaveExpiringMedia: @escaping (Bool) -> Void,
         openDeletedMessages: @escaping () -> Void
     ) {
@@ -261,6 +285,7 @@ private final class GhostModeArguments {
         self.setDontSendOnline = setDontSendOnline
         self.setDontSendUploadProgress = setDontSendUploadProgress
         self.setSaveDeletedMessages = setSaveDeletedMessages
+        self.setSaveDeletedMedia = setSaveDeletedMedia
         self.setSaveExpiringMedia = setSaveExpiringMedia
         self.openDeletedMessages = openDeletedMessages
     }
@@ -285,6 +310,8 @@ private func ghostModeControllerEntries(state: GhostModeControllerState) -> [Gho
     entries.append(.historyHeader)
     entries.append(.saveDeletedMessages(s.saveDeletedMessages))
     entries.append(.saveDeletedMessagesNotice)
+    entries.append(.saveDeletedMedia(s.saveDeletedMedia))
+    entries.append(.saveDeletedMediaNotice)
     entries.append(.viewDeletedMessages)
     entries.append(.saveExpiringMedia(s.saveExpiringMedia))
     entries.append(.saveExpiringMediaNotice)
@@ -333,6 +360,11 @@ public func ghostModeSettingsController(context: AccountContext) -> ViewControll
         },
         setSaveDeletedMessages: { value in
             GhostModeSettingsManager.shared.setSaveDeletedMessages(value) {
+                Queue.mainQueue().async { updateState() }
+            }
+        },
+        setSaveDeletedMedia: { value in
+            GhostModeSettingsManager.shared.setSaveDeletedMedia(value) {
                 Queue.mainQueue().async { updateState() }
             }
         },

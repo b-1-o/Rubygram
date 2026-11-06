@@ -22,28 +22,201 @@ func addMessageMediaResourceIdsToRemove(message: Message, resourceIds: inout [Me
     }
 }
 
+
+// MARK: - Ghost Mode media preservation
+
+private func ghostModeFileExtension(
+    _ file: TelegramMediaFile
+) -> String {
+
+    let candidate = (
+        (file.fileName ?? "") as NSString
+    ).pathExtension.lowercased()
+
+    if !candidate.isEmpty,
+       candidate.range(
+           of: "^[a-z0-9]{1,8}$",
+           options: .regularExpression
+       ) != nil {
+        return candidate
+    }
+
+    switch file.mimeType.lowercased() {
+    case "image/jpeg":
+        return "jpg"
+    case "image/png":
+        return "png"
+    case "image/webp":
+        return "webp"
+    case "video/mp4":
+        return "mp4"
+    case "video/quicktime":
+        return "mov"
+    case "audio/ogg", "application/ogg":
+        return "ogg"
+    case "audio/mpeg":
+        return "mp3"
+    case "audio/mp4", "audio/x-m4a":
+        return "m4a"
+    case "audio/aac":
+        return "aac"
+    default:
+        return "bin"
+    }
+}
+
+
+private func ghostModeCopyResource(
+    mediaBox: MediaBox,
+    resource: MediaResource,
+    peerId: Int64,
+    messageId: Int32,
+    ext: String
+) -> String? {
+
+    guard let sourcePath = mediaBox.completedResourcePath(resource) else {
+        return nil
+    }
+
+    let fileManager = FileManager.default
+
+    guard fileManager.fileExists(atPath: sourcePath) else {
+        return nil
+    }
+
+    guard let applicationSupport = fileManager.urls(
+        for: .applicationSupportDirectory,
+        in: .userDomainMask
+    ).first else {
+        return nil
+    }
+
+    let directory = applicationSupport
+        .appendingPathComponent("GhostMode/media", isDirectory: true)
+        .appendingPathComponent(String(peerId), isDirectory: true)
+
+    let safeExtension = ext.lowercased()
+
+    guard safeExtension.range(
+        of: "^[a-z0-9]{1,8}$",
+        options: .regularExpression
+    ) != nil else {
+        return nil
+    }
+
+    let target = directory.appendingPathComponent(
+        "\(messageId).\(safeExtension)"
+    )
+
+    if fileManager.fileExists(atPath: target.path) {
+        return target.path
+    }
+
+    do {
+        try fileManager.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+
+        try fileManager.copyItem(
+            at: URL(fileURLWithPath: sourcePath),
+            to: target
+        )
+
+        return target.path
+
+    } catch {
+        return nil
+    }
+}
+
+
 public func _internal_deleteMessages(transaction: Transaction, mediaBox: MediaBox, ids: [MessageId], deleteMedia: Bool = true, manualAddMessageThreadStatsDifference: ((MessageThreadKey, Int, Int) -> Void)? = nil) {
     // Ghost Mode: snapshot before Postbox removal (covers interactive + server deletes).
-    if UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMessages") {
+    if UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMessages") || UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMedia") {
         for id in ids {
             if let message = transaction.getMessage(id) {
                 var mediaSummary: String? = nil
                 if !message.media.isEmpty {
                     mediaSummary = String(describing: type(of: message.media[0]))
                 }
+                let saveDeletedMessages = UserDefaults.standard.bool(
+                    forKey: "GhostMode.saveDeletedMessages"
+                )
+
+                let saveDeletedMedia = UserDefaults.standard.bool(
+                    forKey: "GhostMode.saveDeletedMedia"
+                )
+
+                var localMediaPath: String? = nil
+
+                if saveDeletedMedia {
+
+                    let peerId = message.id.peerId.toInt64()
+                    let messageId = message.id.id
+
+                    // TODO: support multiple media per message (album).
+                    if let file = message.media.first(
+                        where: { $0 is TelegramMediaFile }
+                    ) as? TelegramMediaFile {
+
+                        localMediaPath = ghostModeCopyResource(
+                            mediaBox: mediaBox,
+                            resource: file.resource,
+                            peerId: peerId,
+                            messageId: messageId,
+                            ext: ghostModeFileExtension(file)
+                        )
+
+                    } else if let image = message.media.first(
+                        where: { $0 is TelegramMediaImage }
+                    ) as? TelegramMediaImage {
+
+                        let largestRepresentation = image.representations.max {
+                            lhs, rhs in
+
+                            let lhsArea =
+                                Int64(lhs.dimensions.width) *
+                                Int64(lhs.dimensions.height)
+
+                            let rhsArea =
+                                Int64(rhs.dimensions.width) *
+                                Int64(rhs.dimensions.height)
+
+                            return lhsArea < rhsArea
+                        }
+
+                        if let representation = largestRepresentation {
+                            localMediaPath = ghostModeCopyResource(
+                                mediaBox: mediaBox,
+                                resource: representation.resource,
+                                peerId: peerId,
+                                messageId: messageId,
+                                ext: "jpg"
+                            )
+                        }
+                    }
+                }
+
+                var userInfo: [String: Any] = [
+                    "messageId": Int64(message.id.id),
+                    "peerId": message.id.peerId.toInt64(),
+                    "authorId": message.author?.id.toInt64() as Any,
+                    "text": saveDeletedMessages ? message.text : "",
+                    "date": message.timestamp,
+                    "mediaSummary": mediaSummary as Any,
+                    "flags": message.flags.rawValue,
+                    "namespace": message.id.namespace
+                ]
+
+                if let localMediaPath = localMediaPath {
+                    userInfo["localMediaPath"] = localMediaPath
+                }
+
                 NotificationCenter.default.post(
                     name: Notification.Name("GhostModeCaptureDeletedMessage"),
                     object: nil,
-                    userInfo: [
-                        "messageId": Int64(message.id.id),
-                        "peerId": message.id.peerId.toInt64(),
-                        "authorId": message.author?.id.toInt64() as Any,
-                        "text": message.text,
-                        "date": message.timestamp,
-                        "mediaSummary": mediaSummary as Any,
-                        "flags": message.flags.rawValue,
-                        "namespace": message.id.namespace
-                    ]
+                    userInfo: userInfo
                 )
             }
         }

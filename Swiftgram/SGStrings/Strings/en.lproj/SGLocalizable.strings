@@ -297,3 +297,13 @@
 "GhostMode.SaveDeletedMessages.Description" = "Keep a local copy when someone deletes a message.";
 "GhostMode.SaveExpiringMedia" = "Save expiring media";
 "GhostMode.SaveExpiringMedia.Description" = "Keep self-destructing photos and videos locally.";
+
+/* Ghost Mode media and deleted messages */
+"GhostMode.SaveDeletedMedia" = "Save deleted media";
+"GhostMode.SaveDeletedMedia.Description" = "Save photos, videos, voice and round messages from deleted messages";
+"GhostMode.DeletedMessages.Title" = "Deleted Messages";
+"GhostMode.DeletedMessages.Empty" = "No deleted messages captured yet.";
+"GhostMode.DeletedMessages.Clear" = "Clear All";
+"GhostMode.DeletedMessages.View" = "View Deleted Messages";
+"GhostMode.DeletedMessages.ShowTabs" = "Show tabs";
+"GhostMode.DeletedMessages.ShowChats" = "Show chats";
