@@ -1,4 +1,5 @@
 import Foundation
+import TelegramCore
 
 /// Snapshot of a message retained after it was deleted from the chat history.
 public struct GhostModeDeletedMessage: Codable, Equatable, Identifiable {
@@ -8,6 +9,9 @@ public struct GhostModeDeletedMessage: Codable, Equatable, Identifiable {
     public var authorId: Int64?
     public var text: String
     public var date: Int32
+    public var namespace: Int32?
+    public var flags: Int32?
+    public var stableId: UInt32?
     public var mediaSummary: String?
     public var localMediaPath: String?
     public var deletedAt: TimeInterval
@@ -21,7 +25,10 @@ public struct GhostModeDeletedMessage: Codable, Equatable, Identifiable {
         date: Int32,
         mediaSummary: String?,
         localMediaPath: String? = nil,
-        deletedAt: TimeInterval = Date().timeIntervalSince1970
+        deletedAt: TimeInterval = Date().timeIntervalSince1970,
+        namespace: Int32? = nil,
+        flags: Int32? = nil,
+        stableId: UInt32? = nil
     ) {
         self.id = id
         self.messageId = messageId
@@ -29,6 +36,9 @@ public struct GhostModeDeletedMessage: Codable, Equatable, Identifiable {
         self.authorId = authorId
         self.text = text
         self.date = date
+        self.namespace = namespace
+        self.flags = flags
+        self.stableId = stableId
         self.mediaSummary = mediaSummary
         self.localMediaPath = localMediaPath
         self.deletedAt = deletedAt
@@ -71,7 +81,12 @@ public final class GhostModeDeletedMessagesStorage {
     public func insert(_ message: GhostModeDeletedMessage, completion: (() -> Void)? = nil) {
         self.queue.async {
             var items = self.loadSync(accountId: self.currentAccountId)
-            if items.contains(where: { $0.messageId == message.messageId && $0.peerId == message.peerId }) {
+            let messageNamespace = message.namespace ?? Namespaces.Message.Cloud
+            if items.contains(where: {
+                $0.peerId == message.peerId &&
+                ($0.namespace ?? Namespaces.Message.Cloud) == messageNamespace &&
+                $0.messageId == message.messageId
+            }) {
                 DispatchQueue.main.async { completion?() }
                 return
             }
@@ -121,7 +136,11 @@ public final class GhostModeDeletedMessagesStorage {
 public enum GhostModeDeletedMessageCapture {
     public static let notificationName = Notification.Name("GhostModeCaptureDeletedMessage")
 
-    public static func post(messageId: Int64, peerId: Int64, authorId: Int64?, text: String, date: Int32, mediaSummary: String?) {
+    public static func post(
+        messageId: Int64, peerId: Int64, authorId: Int64?,
+        text: String, date: Int32, mediaSummary: String?,
+        namespace: Int32, flags: Int32, stableId: UInt32
+    ) {
         guard UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMessages") || UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMedia") else { return }
         let payload: [String: Any] = [
             "messageId": messageId,
@@ -129,7 +148,10 @@ public enum GhostModeDeletedMessageCapture {
             "authorId": authorId as Any,
             "text": text,
             "date": date,
-            "mediaSummary": mediaSummary as Any
+            "mediaSummary": mediaSummary as Any,
+            "namespace": namespace,
+            "flags": flags,
+            "stableId": stableId
         ]
         NotificationCenter.default.post(name: notificationName, object: nil, userInfo: payload)
     }
