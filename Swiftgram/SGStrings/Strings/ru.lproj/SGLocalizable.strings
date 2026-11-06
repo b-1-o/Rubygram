@@ -113,7 +113,7 @@
 "Settings.SmallReactions" = "Маленькие реакции";
 "Settings.HideReactions" = "Скрыть реакции";
 
-"ContextMenu.SaveToCloud" = "Со<e>" = "Сохранить в Избранное";
+"ContextMenu.SaveToCloud" = "Сохранить в Избранное";
 "ContextMenu.SelectFromUser" = "Выбрать от Автора";
 
 "Settings.ContextMenu" = "КОНТЕКСТНОЕ МЕНЮ";
@@ -122,10 +122,13 @@
 
 "Settings.ChatSwipeOptions" = "Опции чатов при свайпе";
 "Settings.DeleteChatSwipeOption" = "Свайп для удаления чата";
+/* Re-word like this string on offical app https://translations.telegram.org/en/ios/groups_and_channels/Chat.NextChannelSameLocationSwipeProgress */
 "Settings.PullToNextChannel" = "Свайп между каналами";
+/* Re-word like this string on offical app https://translations.telegram.org/en/ios/groups_and_channels/Chat.NextUnreadTopicSwipeProgress */
 "Settings.PullToNextTopic" = "Свайп между топиками";
 "Settings.GalleryCamera" = "Камера в галерее";
 "Settings.GalleryCameraPreview" = "Превью камеры в галерее";
+/* "Send Message As..." button */
 "Settings.SendAsButton" = "Кнопка \"%@\"";
 "Settings.SnapDeletionEffect" = "Эффекты удаления сообщений";
 
@@ -137,8 +140,12 @@
 "Settings.DefaultEmojisFirst" = "Сначала стандартные смайлы";
 "Settings.DefaultEmojisFirst.Notice" = "Показывать стандартные эмодзи перед Premium в эмодзи-клавиатуре";
 
+/* Date when chat was created. "created: 24 May 2016" */
 "Chat.Created" = "создан: %@";
+
+/* Date when user joined the chat. "Joined Swiftgram Chat" */
 "Chat.JoinedDateTitle" = "Присоединился к %@";
+/* Date when user registered in Telegram. Will be shown like "Registered\n24 May 2016" */
 "Chat.RegDate" = "Дата регистрации";
 
 "Settings.messageDoubleTapActionOutgoingEdit" = "Редактирование двойным тапом";
@@ -156,7 +163,10 @@
 "Settings.CallConfirmation" = "Подтверждение вызова";
 "Settings.CallConfirmation.Notice" = "Swiftgram запросит подтверждение перед совершением звонка.";
 
+/* Confirmation before making a Call */
 "CallConfirmation.Audio.Title" = "Позвонить?";
+
+/* Confirmation before making a Video Call */
 "CallConfirmation.Video.Title" = "Позвонить с видео?";
 
 "MutualContact.Label" = "взаимный контакт";
@@ -264,8 +274,7 @@
 "Settings.NY.Notice" = "Доступны только на ограниченное время!";
 
 /* Ghost Mode */
-"GhostMode.Title" = "Режим призрака";
-"GhostMode.Section.Header" = "РЕЖИМ ПРИЗРАКА";
+"GhostMode.Title" = "Режим призрака\n"GhostMode.Section.Header" = "РЕЖИМ ПРИЗРАКА";
 "GhostMode.Disclosure.Title" = "Режим призрака";
 "GhostMode.Intro" = "Скрывает ваши действия от собеседников. Работает только для этого аккаунта.";
 "GhostMode.Actions.Header" = "ДЕЙСТВИЯ";
