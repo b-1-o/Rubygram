@@ -201,6 +201,7 @@ public class ChatMessageDateAndStatusNode: ASDisplayNode {
         var tonAmount: Int64?
         var isPinned: Bool
         var hasAutoremove: Bool
+        var isGhostDeleted: Bool
         var canViewReactionList: Bool
         var animationCache: AnimationCache
         var animationRenderer: MultiAnimationRenderer
@@ -227,6 +228,7 @@ public class ChatMessageDateAndStatusNode: ASDisplayNode {
             tonAmount: Int64? = nil,
             isPinned: Bool,
             hasAutoremove: Bool,
+            isGhostDeleted: Bool = false,
             canViewReactionList: Bool,
             animationCache: AnimationCache,
             animationRenderer: MultiAnimationRenderer
@@ -252,6 +254,7 @@ public class ChatMessageDateAndStatusNode: ASDisplayNode {
             self.tonAmount = tonAmount
             self.isPinned = isPinned
             self.hasAutoremove = hasAutoremove
+            self.isGhostDeleted = isGhostDeleted
             self.canViewReactionList = canViewReactionList
             self.animationCache = animationCache
             self.animationRenderer = animationRenderer
@@ -271,6 +274,9 @@ public class ChatMessageDateAndStatusNode: ASDisplayNode {
     private var reactionButtonNode: HighlightTrackingButtonNode?
     private var repliesIcon: ASImageNode?
     private var selfExpiringIcon: ASImageNode?
+    private var ghostDeletedIcon: ASImageNode?
+    // Asset: SelfExpiring.imageset/ic_autodeleteindicator.pdf
+    private let ghostDeletedIconImage: UIImage? = UIImage(bundleImageName: "Chat/Message/SelfExpiring")
     private var replyCountNode: TextNode?
     private var starsIcon: ASImageNode?
     private var starsCountNode: TextNode?
@@ -324,6 +330,7 @@ public class ChatMessageDateAndStatusNode: ASDisplayNode {
         var checkSentNode = self.checkSentNode
         var clockFrameNode = self.clockFrameNode
         var clockMinNode = self.clockMinNode
+        var ghostDeletedIconNode = self.ghostDeletedIcon
         
         var currentBackgroundNode = self.backgroundNode
         var currentImpressionIcon = self.impressionIcon
@@ -554,10 +561,11 @@ public class ChatMessageDateAndStatusNode: ASDisplayNode {
             
             let checkOffset = floor(arguments.presentationData.fontSize.baseDisplaySize * 6.0 / 17.0)
             
-            let statusWidth: CGFloat
+            var statusWidth: CGFloat
             
             var checkSentFrame: CGRect?
             var checkReadFrame: CGRect?
+            var ghostDeletedIconFrame: CGRect?
             
             var clockPosition = CGPoint()
             
@@ -699,7 +707,34 @@ public class ChatMessageDateAndStatusNode: ASDisplayNode {
                 clockFrameNode = nil
                 clockMinNode = nil
             }
-            
+
+            if arguments.isGhostDeleted, self?.ghostDeletedIconImage != nil {
+                let iconSize = CGSize(width: 10.0, height: 10.0)
+                let iconAdvance = iconSize.width + 3.0
+                ghostDeletedIconFrame = CGRect(
+                    origin: CGPoint(
+                        x: leftInset + impressionWidth + date.size.width + 5.0,
+                        y: 1.0 + offset + floor((date.size.height - iconSize.height) / 2.0)
+                    ),
+                    size: iconSize
+                )
+                checkSentFrame = checkSentFrame?.offsetBy(dx: iconAdvance, dy: 0.0)
+                checkReadFrame = checkReadFrame?.offsetBy(dx: iconAdvance, dy: 0.0)
+                clockPosition.x += iconAdvance
+                statusWidth += iconAdvance
+
+                if ghostDeletedIconNode == nil {
+                    let node = ASImageNode()
+                    node.isLayerBacked = true
+                    node.displaysAsynchronously = false
+                    node.displayWithoutProcessing = true
+                    node.contentMode = .scaleAspectFit
+                    ghostDeletedIconNode = node
+                }
+            } else {
+                ghostDeletedIconNode = nil
+            }
+
             var backgroundInsets = UIEdgeInsets()
             
             if let _ = backgroundImage {
@@ -1218,7 +1253,31 @@ public class ChatMessageDateAndStatusNode: ASDisplayNode {
                             strongSelf.checkSentNode = nil
                             strongSelf.checkReadNode = nil
                         }
-                        
+
+                        if let ghostDeletedIconNode = ghostDeletedIconNode,
+                           let ghostDeletedIconFrame = ghostDeletedIconFrame,
+                           let image = strongSelf.ghostDeletedIconImage {
+                            ghostDeletedIconNode.image = image
+                            let actualFrame = ghostDeletedIconFrame.offsetBy(
+                                dx: leftOffset + backgroundInsets.left + reactionInset,
+                                dy: backgroundInsets.top + verticalInset
+                            )
+                            if strongSelf.ghostDeletedIcon == nil {
+                                strongSelf.ghostDeletedIcon = ghostDeletedIconNode
+                                strongSelf.addSubnode(ghostDeletedIconNode)
+                                ghostDeletedIconNode.frame = actualFrame
+                            } else {
+                                animation.animator.updateFrame(
+                                    layer: ghostDeletedIconNode.layer,
+                                    frame: actualFrame,
+                                    completion: nil
+                                )
+                            }
+                            ghostDeletedIconNode.isHidden = false
+                        } else if let ghostDeletedIcon = strongSelf.ghostDeletedIcon {
+                            ghostDeletedIcon.isHidden = true
+                        }
+
                         var reactionOffset: CGFloat = leftOffset + leftInset - reactionInset + backgroundInsets.left
                         
                         if let messageEffect = arguments.messageEffect {
