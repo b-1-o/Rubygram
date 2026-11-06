@@ -10,7 +10,7 @@ public struct GhostModeDeletedMessage: Codable, Equatable, Identifiable {
     public var text: String
     public var date: Int32
     public var namespace: Int32?
-    public var flags: Int32?
+    public var flags: UInt32?
     public var stableId: UInt32?
     public var mediaSummary: String?
     public var localMediaPath: String?
@@ -27,7 +27,7 @@ public struct GhostModeDeletedMessage: Codable, Equatable, Identifiable {
         localMediaPath: String? = nil,
         deletedAt: TimeInterval = Date().timeIntervalSince1970,
         namespace: Int32? = nil,
-        flags: Int32? = nil,
+        flags: UInt32? = nil,
         stableId: UInt32? = nil
     ) {
         self.id = id
