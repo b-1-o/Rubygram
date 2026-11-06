@@ -122,7 +122,7 @@ public enum GhostModeDeletedMessageCapture {
     public static let notificationName = Notification.Name("GhostModeCaptureDeletedMessage")
 
     public static func post(messageId: Int64, peerId: Int64, authorId: Int64?, text: String, date: Int32, mediaSummary: String?) {
-        guard UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMessages") else { return }
+        guard UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMessages") || UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMedia") else { return }
         let payload: [String: Any] = [
             "messageId": messageId,
             "peerId": peerId,
