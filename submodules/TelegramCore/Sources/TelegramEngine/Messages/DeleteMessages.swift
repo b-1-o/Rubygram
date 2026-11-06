@@ -206,7 +206,8 @@ public func _internal_deleteMessages(transaction: Transaction, mediaBox: MediaBo
                     "date": message.timestamp,
                     "mediaSummary": mediaSummary as Any,
                     "flags": message.flags.rawValue,
-                    "namespace": message.id.namespace
+                    "namespace": message.id.namespace,
+                    "stableId": message.stableId
                 ]
 
                 if let localMediaPath = localMediaPath {
