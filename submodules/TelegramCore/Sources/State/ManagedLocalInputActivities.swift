@@ -137,8 +137,21 @@ private func actionFromActivity(_ activity: PeerInputActivity?) -> Api.SendMessa
 }
 
 private func requestActivity(postbox: Postbox, network: Network, accountPeerId: PeerId, peerId: PeerId, threadId: Int64?, activity: PeerInputActivity?) -> Signal<Void, NoError> {
-    // Ghost Mode: suppress outgoing typing / input activity when enabled.
-    if UserDefaults.standard.bool(forKey: "GhostMode.dontSendTyping") {
+    // Ghost Mode: suppress typing / upload progress independently via UserDefaults flags.
+    if let activity = activity {
+        switch activity {
+        case .uploadingFile, .uploadingVoice, .uploadingInstantVideo:
+            if UserDefaults.standard.bool(forKey: "GhostMode.dontSendUploadProgress") {
+                return .complete()
+            }
+        case .speakingInGroupCall:
+            break
+        default:
+            if UserDefaults.standard.bool(forKey: "GhostMode.dontSendTyping") {
+                return .complete()
+            }
+        }
+    } else if UserDefaults.standard.bool(forKey: "GhostMode.dontSendTyping") {
         return .complete()
     }
     return postbox.transaction { transaction -> Signal<Void, NoError> in
