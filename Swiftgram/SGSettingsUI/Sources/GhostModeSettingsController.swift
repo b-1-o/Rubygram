@@ -117,19 +117,19 @@ private enum GhostModeEntry: ItemListNodeEntry {
         case .introNotice:
             return ItemListTextItem(
                 presentationData: presentationData,
-                text: .plain(i18n("GhostMode.Intro", lang)),
+                text: .plain("GhostMode.Intro".i18n(lang)),
                 sectionId: self.section
             )
         case .actionsHeader:
             return ItemListSectionHeaderItem(
                 presentationData: presentationData,
-                text: i18n("GhostMode.Actions.Header", lang),
+                text: "GhostMode.Actions.Header".i18n(lang),
                 sectionId: self.section
             )
         case let .dontReadMessages(value):
             return ItemListSwitchItem(
                 presentationData: presentationData,
-                title: i18n("GhostMode.DontReadMessages", lang),
+                title: "GhostMode.DontReadMessages".i18n(lang),
                 value: value,
                 sectionId: self.section,
                 style: .blocks,
@@ -138,13 +138,13 @@ private enum GhostModeEntry: ItemListNodeEntry {
         case .dontReadMessagesNotice:
             return ItemListTextItem(
                 presentationData: presentationData,
-                text: .plain(i18n("GhostMode.DontReadMessages.Description", lang)),
+                text: .plain("GhostMode.DontReadMessages.Description".i18n(lang)),
                 sectionId: self.section
             )
         case let .dontSendTyping(value):
             return ItemListSwitchItem(
                 presentationData: presentationData,
-                title: i18n("GhostMode.DontSendTyping", lang),
+                title: "GhostMode.DontSendTyping".i18n(lang),
                 value: value,
                 sectionId: self.section,
                 style: .blocks,
@@ -153,13 +153,13 @@ private enum GhostModeEntry: ItemListNodeEntry {
         case .dontSendTypingNotice:
             return ItemListTextItem(
                 presentationData: presentationData,
-                text: .plain(i18n("GhostMode.DontSendTyping.Description", lang)),
+                text: .plain("GhostMode.DontSendTyping.Description".i18n(lang)),
                 sectionId: self.section
             )
         case let .dontSendOnline(value):
             return ItemListSwitchItem(
                 presentationData: presentationData,
-                title: i18n("GhostMode.DontSendOnline", lang),
+                title: "GhostMode.DontSendOnline".i18n(lang),
                 value: value,
                 sectionId: self.section,
                 style: .blocks,
@@ -168,13 +168,13 @@ private enum GhostModeEntry: ItemListNodeEntry {
         case .dontSendOnlineNotice:
             return ItemListTextItem(
                 presentationData: presentationData,
-                text: .plain(i18n("GhostMode.DontSendOnline.Description", lang)),
+                text: .plain("GhostMode.DontSendOnline.Description".i18n(lang)),
                 sectionId: self.section
             )
         case let .dontSendUploadProgress(value):
             return ItemListSwitchItem(
                 presentationData: presentationData,
-                title: i18n("GhostMode.DontSendUploadProgress", lang),
+                title: "GhostMode.DontSendUploadProgress".i18n(lang),
                 value: value,
                 sectionId: self.section,
                 style: .blocks,
@@ -183,19 +183,19 @@ private enum GhostModeEntry: ItemListNodeEntry {
         case .dontSendUploadProgressNotice:
             return ItemListTextItem(
                 presentationData: presentationData,
-                text: .plain(i18n("GhostMode.DontSendUploadProgress.Description", lang)),
+                text: .plain("GhostMode.DontSendUploadProgress.Description".i18n(lang)),
                 sectionId: self.section
             )
         case .historyHeader:
             return ItemListSectionHeaderItem(
                 presentationData: presentationData,
-                text: i18n("GhostMode.History.Header", lang),
+                text: "GhostMode.History.Header".i18n(lang),
                 sectionId: self.section
             )
         case let .saveDeletedMessages(value):
             return ItemListSwitchItem(
                 presentationData: presentationData,
-                title: i18n("GhostMode.SaveDeletedMessages", lang),
+                title: "GhostMode.SaveDeletedMessages".i18n(lang),
                 value: value,
                 sectionId: self.section,
                 style: .blocks,
@@ -204,13 +204,13 @@ private enum GhostModeEntry: ItemListNodeEntry {
         case .saveDeletedMessagesNotice:
             return ItemListTextItem(
                 presentationData: presentationData,
-                text: .plain(i18n("GhostMode.SaveDeletedMessages.Description", lang)),
+                text: .plain("GhostMode.SaveDeletedMessages.Description".i18n(lang)),
                 sectionId: self.section
             )
         case let .saveExpiringMedia(value):
             return ItemListSwitchItem(
                 presentationData: presentationData,
-                title: i18n("GhostMode.SaveExpiringMedia", lang),
+                title: "GhostMode.SaveExpiringMedia".i18n(lang),
                 value: value,
                 sectionId: self.section,
                 style: .blocks,
@@ -219,7 +219,7 @@ private enum GhostModeEntry: ItemListNodeEntry {
         case .saveExpiringMediaNotice:
             return ItemListTextItem(
                 presentationData: presentationData,
-                text: .plain(i18n("GhostMode.SaveExpiringMedia.Description", lang)),
+                text: .plain("GhostMode.SaveExpiringMedia.Description".i18n(lang)),
                 sectionId: self.section
             )
         }
@@ -334,7 +334,7 @@ public func ghostModeSettingsController(context: AccountContext) -> ViewControll
         let lang = presentationData.strings.baseLanguageCode
         let controllerState = ItemListControllerState(
             presentationData: ItemListPresentationData(presentationData),
-            title: .text(i18n("GhostMode.Title", lang)),
+            title: .text("GhostMode.Title".i18n(lang)),
             leftNavigationButton: nil,
             rightNavigationButton: nil,
             backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back),

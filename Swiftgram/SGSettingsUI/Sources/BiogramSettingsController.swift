@@ -9,6 +9,7 @@ import ItemListUI
 import AccountContext
 import PresentationDataUtils
 import Biogram
+import SGStrings
 
 // MARK: - Helpers
 
@@ -178,6 +179,7 @@ private enum BiogramSection: Int32 {
     case collectibles = 4
     case banner = 5
     case card = 6
+    case ghostMode = 7
     case info = 8
 }
 
@@ -250,6 +252,7 @@ private enum BiogramEntryId: Hashable {
     case collectiblesHeader, collectible(String), addGiftFromLink
     case bannerHeader, bannerPreview, chooseBanner, removeBanner
     case profileCardHeader, openProfileCard
+    case ghostModeHeader, openGhostMode
     case info
 }
 
@@ -277,6 +280,8 @@ private enum BiogramEntry: ItemListNodeEntry {
     case removeBanner
     case profileCardHeader
     case openProfileCard(BiogramProfileCardStyle, Bool)
+    case ghostModeHeader
+    case openGhostMode
     case info
    
     var section: ItemListSectionId {
@@ -289,6 +294,7 @@ private enum BiogramEntry: ItemListNodeEntry {
         case .collectiblesHeader, .collectible, .addGiftFromLink: return BiogramSection.collectibles.rawValue
         case .bannerHeader, .bannerPreview, .chooseBanner, .removeBanner: return BiogramSection.banner.rawValue
         case .profileCardHeader, .openProfileCard: return BiogramSection.card.rawValue
+        case .ghostModeHeader, .openGhostMode: return BiogramSection.ghostMode.rawValue
         case .info: return BiogramSection.info.rawValue
         }
     }
@@ -318,6 +324,8 @@ private enum BiogramEntry: ItemListNodeEntry {
         case .removeBanner: return .removeBanner
         case .profileCardHeader: return .profileCardHeader
         case .openProfileCard: return .openProfileCard
+        case .ghostModeHeader: return .ghostModeHeader
+        case .openGhostMode: return .openGhostMode
         case .info: return .info
         }
     }
@@ -381,6 +389,10 @@ private enum BiogramEntry: ItemListNodeEntry {
         case let .openProfileCard(style, hasImage):
             let imageLabel = hasImage ? "Custom artwork" : "Color material"
             return ItemListDisclosureItem(presentationData: presentationData, title: "Customize 3D card", label: "\(style.paletteName) · \(style.material.capitalized) · \(imageLabel)", sectionId: self.section, style: .blocks, action: { arguments.openProfileCard() })
+        case .ghostModeHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: "GhostMode.Section.Header".i18n(presentationData.strings.baseLanguageCode), sectionId: self.section)
+        case .openGhostMode:
+            return ItemListDisclosureItem(presentationData: presentationData, title: "GhostMode.Disclosure.Title".i18n(presentationData.strings.baseLanguageCode), label: "", sectionId: self.section, style: .blocks, action: { arguments.openGhostMode() })
         case .info:
             return ItemListTextItem(presentationData: presentationData, text: .plain("Profile color symbols, Biogram aliases, card material, artwork and all decorative anonymous Biogram numbers are visible to other Biogram users. This does not change the privacy of your actual Telegram phone number. Tap the card to flip it; drag to tilt it in 3D."), sectionId: self.section)
         }
@@ -404,6 +416,7 @@ private final class BiogramArguments {
     let chooseBanner: () -> Void
     let removeBanner: () -> Void
     let openProfileCard: () -> Void
+    let openGhostMode: () -> Void
    
     init(
         togglePremium: @escaping (Bool) -> Void,
@@ -421,7 +434,8 @@ private final class BiogramArguments {
         addGiftFromLink: @escaping () -> Void,
         chooseBanner: @escaping () -> Void,
         removeBanner: @escaping () -> Void,
-        openProfileCard: @escaping () -> Void
+        openProfileCard: @escaping () -> Void,
+        openGhostMode: @escaping () -> Void
     ) {
         self.togglePremium = togglePremium
         self.addNumber = addNumber
@@ -439,6 +453,7 @@ private final class BiogramArguments {
         self.chooseBanner = chooseBanner
         self.removeBanner = removeBanner
         self.openProfileCard = openProfileCard
+        self.openGhostMode = openGhostMode
     }
 }
 
@@ -551,6 +566,9 @@ private func biogramControllerEntries(state: BiogramControllerState) -> [Biogram
     entries.append(.profileCardHeader)
     entries.append(.openProfileCard(state.profileCardStyle, state.hasCardImage))
 
+    entries.append(.ghostModeHeader)
+    entries.append(.openGhostMode)
+
     entries.append(.info)
     return entries
 }
@@ -572,8 +590,10 @@ public func biogramSettingsController(context: AccountContext) -> ViewController
     BiogramManager.shared.switchToAccount(accountId: accountId) {
         updateState()
     }
+    GhostModeSettingsManager.shared.switchToAccount(accountId: accountId)
     // =====================================================================
     var presentControllerImpl: ((ViewController, Any?) -> Void)?
+    var pushControllerImpl: ((ViewController) -> Void)?
 
     let arguments = BiogramArguments(
         togglePremium: { enabled in
@@ -776,6 +796,9 @@ public func biogramSettingsController(context: AccountContext) -> ViewController
                 accountId: accountId,
                 userId: fogWalletAccountId
             ), nil)
+        },
+        openGhostMode: {
+            pushControllerImpl?(ghostModeSettingsController(context: context))
         }
     )
    
@@ -803,6 +826,9 @@ public func biogramSettingsController(context: AccountContext) -> ViewController
     let controller = ItemListController(context: context, state: signal)
     presentControllerImpl = { [weak controller] c, a in
         controller?.present(c, in: .window(.root), with: a)
+    }
+    pushControllerImpl = { [weak controller] c in
+        (controller?.navigationController as? NavigationController)?.pushViewController(c)
     }
 
     return controller
