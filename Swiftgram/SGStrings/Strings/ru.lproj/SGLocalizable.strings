@@ -274,7 +274,8 @@
 "Settings.NY.Notice" = "Доступны только на ограниченное время!";
 
 /* Ghost Mode */
-"GhostMode.Title" = "Режим призрака\n"GhostMode.Section.Header" = "РЕЖИМ ПРИЗРАКА";
+"GhostMode.Title" = "Режим призрака";
+"GhostMode.Section.Header" = "РЕЖИМ ПРИЗРАКА";
 "GhostMode.Disclosure.Title" = "Режим призрака";
 "GhostMode.Intro" = "Скрывает ваши действия от собеседников. Работает только для этого аккаунта.";
 "GhostMode.Actions.Header" = "ДЕЙСТВИЯ";
