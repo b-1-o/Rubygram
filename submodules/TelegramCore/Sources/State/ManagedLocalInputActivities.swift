@@ -110,26 +110,28 @@ private func actionFromActivity(_ activity: PeerInputActivity?) -> Api.SendMessa
         switch activity {
             case .typingText:
                 return .sendMessageTypingAction
-            case .uploadingFile:
-                return .sendMessageUploadDocumentAction(progress: 0)
             case .recordingVoice:
                 return .sendMessageRecordAudioAction
-            case .uploadingVoice:
-                return .sendMessageUploadAudioAction(progress: 0)
-            case .recordingInstantVideo:
-                return .sendMessageRecordRoundAction
-            case .uploadingInstantVideo:
-                return .sendMessageUploadRoundAction(progress: 0)
             case .playingGame:
                 return .sendMessageGamePlayAction
-            case let .interactingWithEmoji(emoticon, messageId, interaction):
-                return .sendMessageEmojiInteraction(emoticon: emoticon, msgId: messageId.id, interaction: .media(data: interaction.data))
+            case let .uploadingFile(progress):
+                return .sendMessageUploadDocumentAction(.init(progress: progress))
+            case let .uploadingPhoto(progress):
+                return .sendMessageUploadPhotoAction(.init(progress: progress))
+            case let .uploadingVideo(progress):
+                return .sendMessageUploadVideoAction(.init(progress: progress))
+            case .recordingInstantVideo:
+                return .sendMessageRecordRoundAction
+            case let .uploadingInstantVideo(progress):
+                return .sendMessageUploadRoundAction(.init(progress: progress))
             case .speakingInGroupCall:
-                return .speakingInGroupCallAction(randomId: 0)
+                return .speakingInGroupCallAction
             case .choosingSticker:
                 return .sendMessageChooseStickerAction
-            case let .interactingWithDocument(documentId, messageId, interaction):
-                return .sendMessageEmojiInteractionSeen(emoticon: "")
+            case let .interactingWithEmoji(emoticon, messageId, interaction):
+                return .sendMessageEmojiInteraction(.init(emoticon: emoticon, msgId: messageId.id, interaction: interaction?.apiDataJson ?? .dataJSON(.init(data: ""))))
+            case let .seeingEmojiInteraction(emoticon):
+                return .sendMessageEmojiInteractionSeen(.init(emoticon: emoticon))
         }
     } else {
         return .sendMessageCancelAction
@@ -137,10 +139,10 @@ private func actionFromActivity(_ activity: PeerInputActivity?) -> Api.SendMessa
 }
 
 private func requestActivity(postbox: Postbox, network: Network, accountPeerId: PeerId, peerId: PeerId, threadId: Int64?, activity: PeerInputActivity?) -> Signal<Void, NoError> {
-    // Ghost Mode: suppress typing / upload progress independently via UserDefaults flags.
+    // Ghost Mode: suppress typing and upload progress independently.
     if let activity = activity {
         switch activity {
-        case .uploadingFile, .uploadingVoice, .uploadingInstantVideo:
+        case .uploadingFile, .uploadingPhoto, .uploadingVideo, .uploadingInstantVideo:
             if UserDefaults.standard.bool(forKey: "GhostMode.dontSendUploadProgress") {
                 return .complete()
             }

@@ -63,7 +63,7 @@ func deleteMessagesInteractively(transaction: Transaction, stateManager: Account
             if let message = transaction.getMessage(id) {
                 var mediaSummary: String? = nil
                 if !message.media.isEmpty {
-                    mediaSummary = String(describing: type(of: message.media[0]))
+                    mediaSummary = String(describing: Swift.type(of: message.media[0]))
                 }
                 NotificationCenter.default.post(
                     name: Notification.Name("GhostModeCaptureDeletedMessage"),
