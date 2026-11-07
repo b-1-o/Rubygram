@@ -203,6 +203,8 @@ func ghostModeCaptureMessageSnapshot(message: Message, mediaBox: MediaBox, saveT
                 capturedMediaType = "gif"
             } else if hasVideoAttribute || normalizedMimeType.hasPrefix("video/") {
                 capturedMediaType = "video"
+            } else if normalizedMimeType.hasPrefix("image/") {
+                capturedMediaType = "image"
             } else {
                 capturedMediaType = "file"
             }
@@ -215,25 +217,37 @@ func ghostModeCaptureMessageSnapshot(message: Message, mediaBox: MediaBox, saveT
                 ext: ghostModeFileExtension(file)
             )
         } else if let image = message.media.first(where: { $0 is TelegramMediaImage }) as? TelegramMediaImage {
-            let largestRepresentation = image.representations.max { lhs, rhs in
+            capturedMediaType = "image"
+            capturedMimeType = "image/jpeg"
+
+            // Prefer the largest cached representation, but fall back to a smaller
+            // completed representation when the full-size resource is not available.
+            let representations = image.representations.sorted { lhs, rhs in
                 let lhsArea = Int64(lhs.dimensions.width) * Int64(lhs.dimensions.height)
                 let rhsArea = Int64(rhs.dimensions.width) * Int64(rhs.dimensions.height)
-                return lhsArea < rhsArea
+                return lhsArea > rhsArea
             }
 
-            if let representation = largestRepresentation {
-                capturedMediaType = "image"
-                capturedMimeType = "image/jpeg"
-                capturedWidth = representation.dimensions.width
-                capturedHeight = representation.dimensions.height
-                capturedFileSize = representation.resource.size
-                localMediaPath = ghostModeCopyResource(
+            if let largestRepresentation = representations.first {
+                capturedWidth = largestRepresentation.dimensions.width
+                capturedHeight = largestRepresentation.dimensions.height
+                capturedFileSize = largestRepresentation.resource.size
+            }
+
+            for representation in representations {
+                if let copiedPath = ghostModeCopyResource(
                     mediaBox: mediaBox,
                     resource: representation.resource,
                     peerId: peerId,
                     messageId: messageId,
                     ext: "jpg"
-                )
+                ) {
+                    localMediaPath = copiedPath
+                    capturedWidth = representation.dimensions.width
+                    capturedHeight = representation.dimensions.height
+                    capturedFileSize = representation.resource.size
+                    break
+                }
             }
         }
 
@@ -245,8 +259,8 @@ func ghostModeCaptureMessageSnapshot(message: Message, mediaBox: MediaBox, saveT
         }
     }
 
-    // Do not persist a media-only record if its source was not available in MediaBox.
-    if !saveText && localMediaPath == nil { return }
+    // Keep media metadata even when its resource is not cached, so the deleted
+    // messages UI can show a meaningful placeholder instead of dropping the event.
 
     var userInfo: [String: Any] = [
         "messageId": Int64(message.id.id),

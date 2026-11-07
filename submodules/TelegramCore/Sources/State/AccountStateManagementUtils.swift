@@ -4440,6 +4440,23 @@ func replayFinalState(
                     }
                 }
             case let .DeleteMessagesWithGlobalIds(ids):
+                // Server-side "delete for everyone" updates arrive as global message ids.
+                // Resolve and snapshot the messages before Postbox removes their records.
+                let saveDeletedMessages = UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMessages")
+                let saveDeletedMedia = UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMedia")
+                if saveDeletedMessages || saveDeletedMedia {
+                    for messageId in transaction.messageIdsForGlobalIds(ids) {
+                        if let message = transaction.getMessage(messageId) {
+                            ghostModeCaptureMessageSnapshot(
+                                message: message,
+                                mediaBox: mediaBox,
+                                saveText: saveDeletedMessages,
+                                saveMedia: saveDeletedMedia
+                            )
+                        }
+                    }
+                }
+
                 var resourceIds: [MediaResourceId] = []
                 transaction.deleteMessagesWithGlobalIds(ids, forEachMedia: { media in
                     addMessageMediaResourceIdsToRemove(media: media, resourceIds: &resourceIds)

@@ -103,11 +103,39 @@ public final class GhostModeDeletedMessagesStorage {
         self.queue.async {
             var items = self.loadSync(accountId: self.currentAccountId)
             let messageNamespace = message.namespace ?? Namespaces.Message.Cloud
-            if items.contains(where: {
+            if let existingIndex = items.firstIndex(where: {
                 $0.peerId == message.peerId &&
                 ($0.namespace ?? Namespaces.Message.Cloud) == messageNamespace &&
                 $0.messageId == message.messageId
             }) {
+                // A text-only capture can arrive before the full media snapshot.
+                // Merge later metadata instead of letting the first partial record win.
+                var existing = items[existingIndex]
+                if existing.text.isEmpty && !message.text.isEmpty {
+                    existing.text = message.text
+                }
+                existing.authorId = message.authorId ?? existing.authorId
+                existing.mediaSummary = message.mediaSummary ?? existing.mediaSummary
+                existing.mediaType = message.mediaType ?? existing.mediaType
+                existing.mimeType = message.mimeType ?? existing.mimeType
+                existing.fileName = message.fileName ?? existing.fileName
+                existing.fileSize = message.fileSize ?? existing.fileSize
+                existing.duration = message.duration ?? existing.duration
+                existing.width = message.width ?? existing.width
+                existing.height = message.height ?? existing.height
+                existing.namespace = message.namespace ?? existing.namespace
+                existing.flags = message.flags ?? existing.flags
+                existing.stableId = message.stableId ?? existing.stableId
+
+                if let newPath = message.localMediaPath,
+                   FileManager.default.fileExists(atPath: newPath) {
+                    existing.localMediaPath = newPath
+                }
+
+                if items[existingIndex] != existing {
+                    items[existingIndex] = existing
+                    self.saveSync(items, accountId: self.currentAccountId)
+                }
                 DispatchQueue.main.async { completion?() }
                 return
             }

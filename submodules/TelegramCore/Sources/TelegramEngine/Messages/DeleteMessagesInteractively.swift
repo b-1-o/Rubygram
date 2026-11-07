@@ -57,29 +57,6 @@ func _internal_deleteMessagesInteractively(account: Account, messageIds: [Messag
 }
     
 func deleteMessagesInteractively(transaction: Transaction, stateManager: AccountStateManager?, postbox: Postbox, messageIds initialMessageIds: [MessageId], type: InteractiveMessagesDeletionType, deleteAllInGroup: Bool = false, removeIfPossiblyDelivered: Bool) {
-    // Ghost Mode: snapshot messages before they are removed from the local history.
-    if UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMessages") {
-        for id in initialMessageIds {
-            if let message = transaction.getMessage(id) {
-                var mediaSummary: String? = nil
-                if !message.media.isEmpty {
-                    mediaSummary = String(describing: Swift.type(of: message.media[0]))
-                }
-                NotificationCenter.default.post(
-                    name: Notification.Name("GhostModeCaptureDeletedMessage"),
-                    object: nil,
-                    userInfo: [
-                        "messageId": Int64(message.id.id),
-                        "peerId": message.id.peerId.toInt64(),
-                        "authorId": message.author?.id.toInt64() as Any,
-                        "text": message.text,
-                        "date": message.timestamp,
-                        "mediaSummary": mediaSummary as Any
-                    ]
-                )
-            }
-        }
-    }
     var messageIds: [MessageAndThreadId] = []
     if deleteAllInGroup {
         var tempIds: [MessageId] = initialMessageIds
@@ -174,7 +151,12 @@ func deleteMessagesInteractively(transaction: Transaction, stateManager: Account
             }
         }
     }
-    _internal_deleteMessages(transaction: transaction, mediaBox: postbox.mediaBox, ids: messageIds.map(\.messageId))
+    _internal_deleteMessages(
+        transaction: transaction,
+        mediaBox: postbox.mediaBox,
+        ids: messageIds.map(\.messageId),
+        captureGhostMode: type == .forEveryone
+    )
     
     stateManager?.notifyDeletedMessages(messageIds: messageIds.map(\.messageId))
     

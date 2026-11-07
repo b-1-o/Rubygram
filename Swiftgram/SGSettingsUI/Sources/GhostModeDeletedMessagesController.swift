@@ -14,6 +14,46 @@ import ObjectiveC
 
 private var ghostModeDeletedMessagesToggleTargetAssociationKey: UInt8 = 0
 
+private func ghostModeDeletedMessageIcon(_ message: GhostModeDeletedMessage) -> UIImage? {
+    let summary = (message.mediaSummary ?? "").lowercased()
+    let mediaType = message.mediaType
+        ?? (summary.contains("image") ? "image" : (summary.contains("video") ? "video" : nil))
+
+    if mediaType == "image" {
+        if let path = message.localMediaPath,
+           FileManager.default.fileExists(atPath: path),
+           let image = UIImage(contentsOfFile: path) {
+            let size = CGSize(width: 40.0, height: 40.0)
+            let renderer = UIGraphicsImageRenderer(size: size)
+            let thumbnail = renderer.image { _ in
+                let imageSize = image.size
+                let scale = min(
+                    size.width / max(imageSize.width, 1.0),
+                    size.height / max(imageSize.height, 1.0)
+                )
+                let fittedSize = CGSize(
+                    width: imageSize.width * scale,
+                    height: imageSize.height * scale
+                )
+                UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 8.0).addClip()
+                image.draw(in: CGRect(
+                    x: (size.width - fittedSize.width) / 2.0,
+                    y: (size.height - fittedSize.height) / 2.0,
+                    width: fittedSize.width,
+                    height: fittedSize.height
+                ))
+            }
+            return thumbnail.withRenderingMode(.alwaysOriginal)
+        }
+        return UIImage(systemName: "photo")
+    }
+
+    if mediaType == "video" || mediaType == "round" {
+        return UIImage(systemName: "video")
+    }
+    return nil
+}
+
 private final class GhostModeDeletedMessagesToggleTarget: NSObject {
     var onTap: (() -> Void)?
 
@@ -92,11 +132,26 @@ private enum DeletedEntry: ItemListNodeEntry {
                 action: { arguments.openChat(peerId) }
             )
         case let .item(m):
-            let title = m.text.isEmpty ? (m.mediaSummary ?? "Media") : m.text
+            let summary = (m.mediaSummary ?? "").lowercased()
+            let mediaType = m.mediaType
+                ?? (summary.contains("image") ? "image" : (summary.contains("video") ? "video" : nil))
+            let title: String
+            if !m.text.isEmpty {
+                title = m.text
+            } else if mediaType == "image" {
+                title = "Photo"
+            } else if mediaType == "video" || mediaType == "round" {
+                title = "Video"
+            } else {
+                title = m.mediaSummary ?? "Media"
+            }
+            let hasLocalMedia = m.localMediaPath.map { FileManager.default.fileExists(atPath: $0) } ?? false
+            let label = (mediaType == "image" && !hasLocalMedia) ? "Preview unavailable" : ""
             return ItemListDisclosureItem(
                 presentationData: presentationData,
+                icon: ghostModeDeletedMessageIcon(m),
                 title: title,
-                label: "",
+                label: label,
                 sectionId: self.section,
                 style: .blocks,
                 action: {}
