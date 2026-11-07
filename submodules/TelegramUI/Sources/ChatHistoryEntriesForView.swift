@@ -76,10 +76,16 @@ private func ghostModeLocalMediaResource(
 private func ghostModeMessage(
     from snapshot: GhostModeDeletedMessage,
     chatPeer: Peer,
+    accountPeerId: PeerId,
     peers: SimpleDictionary<PeerId, Peer>,
     mediaBox: MediaBox
 ) -> Message? {
     guard snapshot.peerId != 0 else {
+        return nil
+    }
+
+    // Older Ghost Mode versions may already have stored our own messages.
+    guard snapshot.authorId != accountPeerId.toInt64() else {
         return nil
     }
 
@@ -109,7 +115,8 @@ private func ghostModeMessage(
     if let raw = snapshot.flags {
         flags = MessageFlags(rawValue: raw)
     } else {
-        flags = [.Incoming]
+        let isOutgoing = snapshot.authorId == accountPeerId.toInt64()
+        flags = isOutgoing ? [] : [.Incoming]
     }
 
     let author: Peer? = snapshot.authorId.flatMap {
@@ -715,6 +722,7 @@ func chatHistoryEntriesForView(
             guard let message = ghostModeMessage(
                 from: snapshot,
                 chatPeer: chatPeer,
+                accountPeerId: context.account.peerId,
                 peers: ghostPeerDictionary,
                 mediaBox: context.account.postbox.mediaBox
             ) else {

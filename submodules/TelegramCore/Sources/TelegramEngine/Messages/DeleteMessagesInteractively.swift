@@ -33,7 +33,7 @@ func _internal_deleteMessagesInteractively(account: Account, messageIds: [Messag
             }
         }
 
-        deleteMessagesInteractively(transaction: transaction, stateManager: account.stateManager, postbox: account.postbox, messageIds: messageIds, type: type, removeIfPossiblyDelivered: true)
+        deleteMessagesInteractively(transaction: transaction, stateManager: account.stateManager, postbox: account.postbox, messageIds: messageIds, type: type, accountPeerId: account.peerId, removeIfPossiblyDelivered: true)
         return ephemeralRequests
     }
     |> mapToSignal { ephemeralRequests -> Signal<Void, NoError> in
@@ -56,7 +56,7 @@ func _internal_deleteMessagesInteractively(account: Account, messageIds: [Messag
     }
 }
     
-func deleteMessagesInteractively(transaction: Transaction, stateManager: AccountStateManager?, postbox: Postbox, messageIds initialMessageIds: [MessageId], type: InteractiveMessagesDeletionType, deleteAllInGroup: Bool = false, removeIfPossiblyDelivered: Bool) {
+func deleteMessagesInteractively(transaction: Transaction, stateManager: AccountStateManager?, postbox: Postbox, messageIds initialMessageIds: [MessageId], type: InteractiveMessagesDeletionType, accountPeerId: PeerId? = nil, deleteAllInGroup: Bool = false, removeIfPossiblyDelivered: Bool) {
     var messageIds: [MessageAndThreadId] = []
     if deleteAllInGroup {
         var tempIds: [MessageId] = initialMessageIds
@@ -155,7 +155,8 @@ func deleteMessagesInteractively(transaction: Transaction, stateManager: Account
         transaction: transaction,
         mediaBox: postbox.mediaBox,
         ids: messageIds.map(\.messageId),
-        captureGhostMode: type == .forEveryone
+        captureGhostMode: type == .forEveryone,
+        accountPeerId: accountPeerId
     )
     
     stateManager?.notifyDeletedMessages(messageIds: messageIds.map(\.messageId))

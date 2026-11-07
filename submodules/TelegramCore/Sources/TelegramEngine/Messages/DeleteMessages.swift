@@ -290,7 +290,7 @@ func ghostModeCaptureMessageSnapshot(message: Message, mediaBox: MediaBox, saveT
 }
 
 
-public func _internal_deleteMessages(transaction: Transaction, mediaBox: MediaBox, ids: [MessageId], deleteMedia: Bool = true, manualAddMessageThreadStatsDifference: ((MessageThreadKey, Int, Int) -> Void)? = nil, captureGhostMode: Bool = true) {
+public func _internal_deleteMessages(transaction: Transaction, mediaBox: MediaBox, ids: [MessageId], deleteMedia: Bool = true, manualAddMessageThreadStatsDifference: ((MessageThreadKey, Int, Int) -> Void)? = nil, captureGhostMode: Bool = true, accountPeerId: PeerId? = nil) {
     // Capture before media resource cleanup and message removal.
     if captureGhostMode {
         let saveDeletedMessages = UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMessages")
@@ -298,6 +298,10 @@ public func _internal_deleteMessages(transaction: Transaction, mediaBox: MediaBo
         if saveDeletedMessages || saveDeletedMedia {
             for id in ids {
                 if let message = transaction.getMessage(id) {
+                    // Never keep snapshots of messages authored by the active account.
+                    if let accountPeerId = accountPeerId, message.author?.id == accountPeerId {
+                        continue
+                    }
                     ghostModeCaptureMessageSnapshot(
                         message: message,
                         mediaBox: mediaBox,

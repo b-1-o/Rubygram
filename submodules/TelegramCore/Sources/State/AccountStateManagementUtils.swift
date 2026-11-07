@@ -4446,7 +4446,8 @@ func replayFinalState(
                 let saveDeletedMedia = UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMedia")
                 if saveDeletedMessages || saveDeletedMedia {
                     for messageId in transaction.messageIdsForGlobalIds(ids) {
-                        if let message = transaction.getMessage(messageId) {
+                        if let message = transaction.getMessage(messageId),
+                           message.author?.id != accountPeerId {
                             ghostModeCaptureMessageSnapshot(
                                 message: message,
                                 mediaBox: mediaBox,
@@ -4468,7 +4469,7 @@ func replayFinalState(
             case let .DeleteMessages(ids):
                 _internal_deleteMessages(transaction: transaction, mediaBox: mediaBox, ids: ids, manualAddMessageThreadStatsDifference: { id, add, remove in
                     addMessageThreadStatsDifference(threadKey: id, remove: remove, addedMessagePeer: nil, addedMessageId: nil, isOutgoing: false)
-                })
+                }, accountPeerId: accountPeerId)
                 deletedMessageIds.append(contentsOf: ids.map { .messageId($0) })
             case let .UpdateMinAvailableMessage(id):
                 if let message = transaction.getMessage(id) {
@@ -6097,7 +6098,7 @@ func replayFinalState(
     for (uniqueId, messageIdValue) in finalState.state.updatedOutgoingUniqueMessageIds {
         if let peerId = removePossiblyDeliveredMessagesUniqueIds[uniqueId] {
             let messageId = MessageId(peerId: peerId, namespace: Namespaces.Message.Cloud, id: messageIdValue)
-            deleteMessagesInteractively(transaction: transaction, stateManager: nil, postbox: postbox, messageIds: [messageId], type: .forEveryone, deleteAllInGroup: false, removeIfPossiblyDelivered: false)
+            deleteMessagesInteractively(transaction: transaction, stateManager: nil, postbox: postbox, messageIds: [messageId], type: .forEveryone, accountPeerId: accountPeerId, deleteAllInGroup: false, removeIfPossiblyDelivered: false)
         }
     }
     

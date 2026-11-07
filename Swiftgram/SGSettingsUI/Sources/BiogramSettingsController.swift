@@ -519,10 +519,11 @@ private func biogramControllerEntries(state: BiogramControllerState) -> [Biogram
     if state.profileColorEnabled {
         let current = state.profileColor
         for (name, preset) in BiogramProfileColor.presets {
-            let selected = current != nil
-                && abs(current!.r - preset.r) < 0.01
-                && abs(current!.g - preset.g) < 0.01
-                && abs(current!.b - preset.b) < 0.01
+            let selected = current.map {
+                abs($0.r - preset.r) < 0.01
+                    && abs($0.g - preset.g) < 0.01
+                    && abs($0.b - preset.b) < 0.01
+            } ?? false
             entries.append(.colorPreset(name, preset, selected))
         }
         entries.append(.colorBrightness(current?.brightness ?? 1.0))
@@ -666,7 +667,7 @@ public func biogramSettingsController(context: AccountContext) -> ViewController
             presentControllerImpl?(alert, nil)
         },
         toggleColor: { enabled in
-            let current = BiogramManager.shared.profileColor ?? BiogramProfileColor.presets[0].1
+            let current = BiogramManager.shared.profileColor ?? biogramDefaultProfileColor()
             BiogramManager.shared.setProfileColor(current, enabled: enabled) {
                 Queue.mainQueue().async { updateState() }
             }
@@ -708,7 +709,7 @@ public func biogramSettingsController(context: AccountContext) -> ViewController
         },
         selectPattern: { key in
             guard var color = BiogramManager.shared.profileColor else {
-                var c = BiogramProfileColor.presets[0].1
+                var c = biogramDefaultProfileColor()
                 c.pattern = key
                 BiogramManager.shared.setProfileColor(c, enabled: true) {
                     Queue.mainQueue().async { updateState() }
@@ -834,19 +835,34 @@ private func biogramCardColor(_ hex: String) -> UIColor {
     )
 }
 
+private func biogramDefaultProfileColor() -> BiogramProfileColor {
+    return BiogramProfileColor.presets.first(where: { $0.0 == "Dark Red" })?.1
+        ?? BiogramProfileColor(r: 0.55, g: 0.08, b: 0.12)
+}
+
 private func biogramCardPalette(_ name: String) -> (UIColor, UIColor) {
+    // A previously saved style may contain a palette name from an older app version.
+    // Never force-unwrap a lookup result while opening or refreshing the card designer.
     let preset = BiogramProfileColor.presets.first(where: { $0.0 == name })?.1
-        ?? BiogramProfileColor.presets.first(where: { $0.0 == "Dark Red" })!.1
+        ?? biogramDefaultProfileColor()
+
+    func component(_ value: Double, fallback: Double) -> CGFloat {
+        guard value.isFinite else {
+            return CGFloat(fallback)
+        }
+        return CGFloat(min(max(value, 0.0), 1.0))
+    }
+
     let main = UIColor(
-        red: CGFloat(preset.r),
-        green: CGFloat(preset.g),
-        blue: CGFloat(preset.b),
+        red: component(preset.r, fallback: 0.55),
+        green: component(preset.g, fallback: 0.08),
+        blue: component(preset.b, fallback: 0.12),
         alpha: 1.0
     )
     let shade = UIColor(
-        red: CGFloat(preset.r * 0.52),
-        green: CGFloat(preset.g * 0.52),
-        blue: CGFloat(preset.b * 0.58),
+        red: component(preset.r * 0.52, fallback: 0.29),
+        green: component(preset.g * 0.52, fallback: 0.04),
+        blue: component(preset.b * 0.58, fallback: 0.07),
         alpha: 1.0
     )
     return (main, shade)

@@ -250,7 +250,14 @@ public final class BiogramManager {
     }
 
     public var profileCardStyle: BiogramProfileCardStyle {
-        return self.cachedCustomizations.profileCardStyle ?? BiogramProfileCardStyle()
+        let storedStyle = self.cachedCustomizations.profileCardStyle ?? BiogramProfileCardStyle()
+        // Codable can restore legacy palette/material strings without invoking the
+        // model's custom initializer. Rebuild the style to normalize those values.
+        return BiogramProfileCardStyle(
+            paletteName: storedStyle.paletteName,
+            material: storedStyle.material,
+            imageFilename: storedStyle.imageFilename
+        )
     }
 
     public func profileCardImage() -> UIImage? {
