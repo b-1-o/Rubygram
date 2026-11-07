@@ -47,34 +47,48 @@ jobs:
 
       - name: Prepare build configuration
         env:
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
           TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
         run: |
           set -euo pipefail
           cd /Users/Shared/telegram-ios
 
           python3 - <<'PY'
-          import json, os
+          import json
+          import os
+          import re
+
           path = "build-system/appstore-configuration.json"
           with open(path, "r", encoding="utf-8") as f:
               config = json.load(f)
+
+          api_id = os.environ.get("TELEGRAM_API_ID", "").strip()
           api_hash = os.environ.get("TELEGRAM_API_HASH", "").strip()
-          if not api_hash:
-              raise SystemExit("TELEGRAM_API_HASH GitHub Actions secret is missing; refusing to build a non-functional login binary.")
+
+          if not api_id.isdecimal() or int(api_id) <= 0:
+              raise SystemExit("TELEGRAM_API_ID GitHub Actions secret is missing or invalid.")
+          if not re.fullmatch(r"[0-9a-fA-F]{32}", api_hash):
+              raise SystemExit("TELEGRAM_API_HASH GitHub Actions secret is missing or invalid (expected 32 hexadecimal characters).")
+
+          # Always use the matching Telegram API credentials from Actions secrets.
+          config["api_id"] = api_id
           config["api_hash"] = api_hash
           config["team_id"] = "FAKE123456"
           config["is_internal_build"] = "true"
           config["is_appstore_build"] = "false"
           config["appstore_id"] = "0"
           config["app_center_id"] = "0"
+
           with open(path, "w", encoding="utf-8") as f:
               json.dump(config, f, indent=4)
-              f.write("\n")
+              f.write("\\n")
+
           print("bundle_id:", config.get("bundle_id"))
           print("team_id:", config.get("team_id"))
-          print("api_hash configured:", bool(config.get("api_hash")))
+          print("api_id configured from Actions secret:", bool(config.get("api_id")))
+          print("api_hash configured from Actions secret:", bool(config.get("api_hash")))
+          print("Telegram API credentials validated; values are intentionally not printed.")
           PY
-
-          cat build-system/appstore-configuration.json
 
       - name: Prepare fake codesigning
         run: |
