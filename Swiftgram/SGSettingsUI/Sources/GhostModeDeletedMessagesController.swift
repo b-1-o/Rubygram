@@ -171,8 +171,8 @@ public func ghostModeDeletedMessagesController(context: AccountContext) -> ViewC
         }
     )
 
-    let signal = combineLatest(queue: .mainQueue(), context.sharedContext.presentationData, statePromise.get())
-    |> map { presentationData, items -> (ItemListControllerState, (ItemListNodeState, Any)) in
+    let signal: Signal<(ItemListControllerState, (ItemListNodeState, DeletedArguments)), NoError> = combineLatest(queue: .mainQueue(), context.sharedContext.presentationData, statePromise.get())
+    |> map { presentationData, items -> (ItemListControllerState, (ItemListNodeState, DeletedArguments)) in
         let lang = presentationData.strings.baseLanguageCode
         let entries = buildEntries(mode: mode, tab: tab, items: items, lang: lang)
         let controllerState = ItemListControllerState(
@@ -180,7 +180,7 @@ public func ghostModeDeletedMessagesController(context: AccountContext) -> ViewC
             title: .text("GhostMode.DeletedMessages.Title".i18n(lang)),
             leftNavigationButton: nil,
             rightNavigationButton: ItemListNavigationButton(
-                content: .icon(.settings),
+                content: .icon(.action),
                 style: .regular,
                 enabled: true,
                 action: {
