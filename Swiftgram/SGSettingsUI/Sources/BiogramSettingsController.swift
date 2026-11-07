@@ -339,7 +339,7 @@ private enum BiogramEntry: ItemListNodeEntry {
         case let .number(_, number):
             let title = number.label ?? number.number
             let detail = number.label != nil ? number.number : "Tap to manage"
-            let label = "\(detail)  ·  VISIBLE TO ALL BIOGRAM USERS"
+            let label = "\(detail)  ·  VISIBLE TO ALL RUBYGRAM USERS"
             return ItemListDisclosureItem(presentationData: presentationData, title: title, label: label, sectionId: self.section, style: .blocks, action: { arguments.editOrRemoveNumber(number) })
         case .addNumber:
             return ItemListActionItem(presentationData: presentationData, title: "Add Number", kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: { arguments.addNumber() })
@@ -377,12 +377,12 @@ private enum BiogramEntry: ItemListNodeEntry {
         case .removeBanner:
             return ItemListActionItem(presentationData: presentationData, title: "Remove Banner", kind: .destructive, alignment: .natural, sectionId: self.section, style: .blocks, action: { arguments.removeBanner() })
         case .profileCardHeader:
-            return ItemListSectionHeaderItem(presentationData: presentationData, text: "BIOGRAM PROFILE CARD", sectionId: self.section)
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: "RUBYGRAM PROFILE CARD", sectionId: self.section)
         case let .openProfileCard(style, hasImage):
             let imageLabel = hasImage ? "Custom artwork" : "Color material"
             return ItemListDisclosureItem(presentationData: presentationData, title: "Customize 3D card", label: "\(style.paletteName) · \(style.material.capitalized) · \(imageLabel)", sectionId: self.section, style: .blocks, action: { arguments.openProfileCard() })
         case .info:
-            return ItemListTextItem(presentationData: presentationData, text: .plain("Profile color symbols, Biogram aliases, card material, artwork and all decorative anonymous Biogram numbers are visible to other Biogram users. This does not change the privacy of your actual Telegram phone number. Tap the card to flip it; drag to tilt it in 3D."), sectionId: self.section)
+            return ItemListTextItem(presentationData: presentationData, text: .plain("Profile color symbols, Rubygram aliases, card material, artwork and all decorative anonymous Rubygram numbers are visible to other Rubygram users. This does not change the privacy of your actual Telegram phone number. Tap the card to flip it; drag to tilt it in 3D."), sectionId: self.section)
         }
     }
 }
@@ -599,7 +599,7 @@ public func biogramSettingsController(context: AccountContext) -> ViewController
             presentControllerImpl?(controller, nil)
         },
         editOrRemoveNumber: { number in
-            let alert = BiogramActionsAlertController(title: number.number, message: "This decorative Biogram number is visible to all Biogram users. Edit or remove it.", actions: [
+            let alert = BiogramActionsAlertController(title: number.number, message: "This decorative Rubygram number is visible to all Rubygram users. Edit or remove it.", actions: [
                 (title: "Edit", destructive: false, action: {
                     let presentationData = context.sharedContext.currentPresentationData.with { $0 }
                     let editCtrl = biogramPrompt(
@@ -785,7 +785,7 @@ public func biogramSettingsController(context: AccountContext) -> ViewController
         let entries = biogramControllerEntries(state: state)
         let controllerState = ItemListControllerState(
             presentationData: ItemListPresentationData(presentationData),
-            title: .text("Biogram"),
+            title: .text("Rubygram"),
             leftNavigationButton: nil,
             rightNavigationButton: nil,
             backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back),
@@ -951,8 +951,8 @@ private final class Biogram3DProfileCardView: UIView {
     private let backSignatureLabel = UILabel()
     private let backFooterLabel = UILabel()
     private var style = BiogramProfileCardStyle()
-    private var userName = "BIOGRAM MEMBER"
-    private var userHandle = "@biogram"
+    private var userName = "RUBYGRAM MEMBER"
+    private var userHandle = "@rubygram"
     private var userId = "—"
     private var showingBack = false
     private var tiltX: CGFloat = 0.0
@@ -1009,7 +1009,7 @@ private final class Biogram3DProfileCardView: UIView {
             frontSheenHost.bottomAnchor.constraint(equalTo: self.front.bottomAnchor)
         ])
 
-        self.brandLabel.text = "BIOGRAM"
+        self.brandLabel.text = "RUBYGRAM"
         self.brandLabel.font = UIFont.systemFont(ofSize: 12, weight: .heavy)
         self.brandLabel.textColor = UIColor.white.withAlphaComponent(0.96)
         self.front.addSubview(self.brandLabel)
@@ -1063,7 +1063,7 @@ private final class Biogram3DProfileCardView: UIView {
         self.backSheen.endPoint = CGPoint(x: 1.0, y: 0.8)
         self.back.layer.addSublayer(self.backSheen)
 
-        self.backTitleLabel.text = "BIOGRAM  /  PROFILE"
+        self.backTitleLabel.text = "RUBYGRAM  /  PROFILE"
         self.backTitleLabel.font = UIFont.monospacedSystemFont(ofSize: 10, weight: .bold)
         self.backTitleLabel.textColor = UIColor.white.withAlphaComponent(0.74)
         self.back.addSubview(self.backTitleLabel)
@@ -1213,15 +1213,15 @@ private final class Biogram3DProfileCardView: UIView {
         publicNumbers: [BiogramCloudPublicNumber] = []
     ) {
         self.style = style
-        self.userName = displayName.isEmpty ? "BIOGRAM MEMBER" : displayName.uppercased()
-        self.userHandle = username.isEmpty ? "@BIOGRAM" : username
+        self.userName = displayName.isEmpty ? "RUBYGRAM MEMBER" : displayName.uppercased()
+        self.userHandle = username.isEmpty ? "@RUBYGRAM" : username
         self.userId = userId
 
         let (main, shade) = biogramCardPalette(style.paletteName)
         self.frontGradient.colors = [main.cgColor, shade.cgColor, biogramCardColor("#101014").cgColor]
         self.frontArtwork.image = image
         self.frontArtwork.isHidden = image == nil
-        self.brandLabel.text = "BIOGRAM"
+        self.brandLabel.text = "RUBYGRAM"
         self.nameLabel.text = self.userName
         self.handleLabel.text = self.userHandle.hasPrefix("@") ? self.userHandle : "@\(self.userHandle)"
         let signature = biogramCardSignature(userId)
@@ -1238,7 +1238,7 @@ private final class Biogram3DProfileCardView: UIView {
         let aliasSuffix = remainingAliasCount > 0 ? "  +\(remainingAliasCount)" : ""
         self.backHashPatternView.seed = userId
         self.backHashLabel.text = "HASH / " + String(biogramCardVisualHash(userId).replacingOccurrences(of: " ", with: "").prefix(12))
-        self.backTitleLabel.text = "BIOGRAM / PROFILE DETAILS"
+        self.backTitleLabel.text = "RUBYGRAM / PROFILE DETAILS"
         self.backHandleLabel.text = visibleAliases.isEmpty
             ? (self.handleLabel.text ?? self.userHandle)
             : "ALIASES  " + visibleAliases.joined(separator: "  · ") + aliasSuffix
@@ -1413,7 +1413,7 @@ public func biogramProfileCardThumbnail(
             .font: UIFont.systemFont(ofSize: 6.2, weight: .heavy),
             .foregroundColor: UIColor.white.withAlphaComponent(0.96)
         ]
-        ("BIOGRAM" as NSString).draw(at: CGPoint(x: 7, y: 6), withAttributes: brandAttributes)
+        ("RUBYGRAM" as NSString).draw(at: CGPoint(x: 7, y: 6), withAttributes: brandAttributes)
 
         let editionAttributes: [NSAttributedString.Key: Any] = [
             .font: UIFont.monospacedSystemFont(ofSize: 3.8, weight: .semibold),
@@ -1442,7 +1442,7 @@ public func biogramProfileCardThumbnail(
         nameParagraph.lineBreakMode = .byTruncatingTail
         var nameTextAttributes = nameAttributes
         nameTextAttributes[.paragraphStyle] = nameParagraph
-        let safeName = displayName.isEmpty ? "BIOGRAM MEMBER" : displayName.uppercased()
+        let safeName = displayName.isEmpty ? "RUBYGRAM MEMBER" : displayName.uppercased()
         (safeName as NSString).draw(
             in: CGRect(x: 7, y: 30, width: 68, height: 9),
             withAttributes: nameTextAttributes
@@ -1497,8 +1497,8 @@ private final class BiogramProfileCardDesignerController: ViewController {
     private let context: AccountContext
     private let accountId: String
     private let userId: String
-    private var username = "@BIOGRAM"
-    private var displayName = "BIOGRAM MEMBER"
+    private var username = "@RUBYGRAM"
+    private var displayName = "RUBYGRAM MEMBER"
     private var style: BiogramProfileCardStyle
     private let scrollView = UIScrollView()
     private let contentStack = UIStackView()
@@ -1580,7 +1580,7 @@ private final class BiogramProfileCardDesignerController: ViewController {
         row.axis = .horizontal
         row.alignment = .center
         row.distribution = .equalSpacing
-        row.addArrangedSubview(self.button("‹  Biogram") { [weak self] in self?.dismiss(animated: true) })
+        row.addArrangedSubview(self.button("‹  Rubygram") { [weak self] in self?.dismiss(animated: true) })
         row.addArrangedSubview(self.label("CARD STUDIO", size: 10, weight: .bold, color: biogramCardColor("#E7D7C0")))
         self.contentStack.addArrangedSubview(row)
         self.contentStack.addArrangedSubview(self.label("Your profile. Your signature.", size: 25, weight: .semibold, color: .white, lines: 2))
@@ -1654,7 +1654,7 @@ private final class BiogramProfileCardDesignerController: ViewController {
     }
 
     private func addFooter() {
-        self.contentStack.addArrangedSubview(self.label("The member serial and profile signature are decorative identity details, not credentials. Your card artwork and material synchronize with your Biogram profile.", size: 11, color: UIColor.white.withAlphaComponent(0.43), lines: 0))
+        self.contentStack.addArrangedSubview(self.label("The member serial and profile signature are decorative identity details, not credentials. Your card artwork and material synchronize with your Rubygram profile.", size: 11, color: UIColor.white.withAlphaComponent(0.43), lines: 0))
     }
 
     private func chooseArtwork() {
@@ -1706,7 +1706,7 @@ private final class BiogramProfileCardDesignerController: ViewController {
             if let username = peer.usernames.first(where: { $0.flags.contains(.isActive) })?.username, !username.isEmpty {
                 self.username = "@\(username)"
             } else {
-                self.username = "@biogram"
+                self.username = "@rubygram"
             }
             self.refreshCard()
         })
@@ -1761,7 +1761,7 @@ private final class BiogramProfileCardViewerController: ViewController {
         top.distribution = .equalSpacing
 
         let title = UILabel()
-        title.text = "BIOGRAM CARD"
+        title.text = "RUBYGRAM CARD"
         title.font = UIFont.monospacedSystemFont(ofSize: 10, weight: .bold)
         title.textColor = biogramCardColor("#E6D7C5")
 
@@ -1769,7 +1769,7 @@ private final class BiogramProfileCardViewerController: ViewController {
         self.stack.addArrangedSubview(top)
 
         let heading = UILabel()
-        heading.text = "Your Biogram card"
+        heading.text = "Your Rubygram card"
         heading.font = UIFont.systemFont(ofSize: 25, weight: .semibold)
         heading.textColor = .white
         heading.numberOfLines = 2
@@ -1817,7 +1817,7 @@ private final class BiogramProfileCardViewerController: ViewController {
             style: self.profile.cardStyle,
             image: self.profile.cardImage,
             displayName: self.profile.displayName,
-            username: self.profile.username.map { "@\($0)" } ?? "@biogram",
+            username: self.profile.username.map { "@\($0)" } ?? "@rubygram",
             userId: self.profile.telegramId,
             aliases: self.profile.aliases,
             publicNumbers: self.profile.publicNumbers

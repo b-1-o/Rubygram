@@ -1,4 +1,4 @@
-name: Biogram CI
+name: Rubygram CI
 
 on:
   push:
@@ -85,7 +85,7 @@ jobs:
           echo "Signing identities:"
           security find-identity -v -p codesigning || true
 
-      - name: Generate Biogram provisioning profiles
+      - name: Generate Rubygram provisioning profiles
         run: |
           set -euo pipefail
           cd /Users/Shared/telegram-ios
@@ -115,7 +115,7 @@ jobs:
           grep -q 'BiogramShared' Swiftgram/SGDBReset/Sources/File.swift
           echo "iOS 26 hardening checks passed."
 
-      - name: Build Biogram
+      - name: Build Rubygram
         run: |
           set -euo pipefail
           SOURCE_DIR="/Users/Shared/telegram-ios"
@@ -124,7 +124,7 @@ jobs:
 
           mkdir -p build/artifacts
 
-          echo "Starting Biogram build"
+          echo "Starting Rubygram build"
           echo "App version: $APP_VERSION"
           echo "Build number: $BUILD_NUMBER"
 
@@ -176,18 +176,18 @@ jobs:
           fi
 
           echo "Found IPA: $IPA_PATH"
-          cp -f "$IPA_PATH" "$OUTPUT_PATH/Biogram.ipa"
+          cp -f "$IPA_PATH" "$OUTPUT_PATH/Rubygram.ipa"
 
           if [ -f "build/artifacts/Swiftgram.DSYMs.zip" ]; then
-            cp -f "build/artifacts/Swiftgram.DSYMs.zip" "$OUTPUT_PATH/Biogram.DSYMs.zip"
+            cp -f "build/artifacts/Swiftgram.DSYMs.zip" "$OUTPUT_PATH/Rubygram.DSYMs.zip"
           elif [ -f "build/artifacts/Telegram.DSYMs.zip" ]; then
-            cp -f "build/artifacts/Telegram.DSYMs.zip" "$OUTPUT_PATH/Biogram.DSYMs.zip"
+            cp -f "build/artifacts/Telegram.DSYMs.zip" "$OUTPUT_PATH/Rubygram.DSYMs.zip"
           else
             rm -rf build/DSYMs
             mkdir -p build/DSYMs
             find bazel-out bazel-bin -type d -name '*.dSYM' -exec cp -R {} build/DSYMs/ \; 2>/dev/null || true
             if find build/DSYMs -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null | grep -q .; then
-              zip -r "$OUTPUT_PATH/Biogram.DSYMs.zip" build/DSYMs >/dev/null
+              zip -r "$OUTPUT_PATH/Rubygram.DSYMs.zip" build/DSYMs >/dev/null
             else
               echo "No dSYM files found."
             fi
@@ -198,24 +198,24 @@ jobs:
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Biogram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}
-          path: /Users/Shared/telegram-ios/build/artifacts/Biogram.ipa
+          name: Rubygram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}
+          path: /Users/Shared/telegram-ios/build/artifacts/Rubygram.ipa
           if-no-files-found: error
 
       - name: Upload DSYM artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Biogram-DSYMs-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}
-          path: /Users/Shared/telegram-ios/build/artifacts/Biogram.DSYMs.zip
+          name: Rubygram-DSYMs-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}
+          path: /Users/Shared/telegram-ios/build/artifacts/Rubygram.DSYMs.zip
           if-no-files-found: warn
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "build-${{ env.BUILD_NUMBER }}"
-          name: "Biogram ${{ env.APP_VERSION }} (${{ env.BUILD_NUMBER }})"
+          name: "Rubygram ${{ env.APP_VERSION }} (${{ env.BUILD_NUMBER }})"
           body: |
-            Biogram iOS build
+            Rubygram iOS build
             Version: ${{ env.APP_VERSION }}
             Build: ${{ env.BUILD_NUMBER }}
             Commit: ${{ github.sha }}
@@ -223,7 +223,7 @@ jobs:
           draft: false
           prerelease: true
           files: |
-            /Users/Shared/telegram-ios/build/artifacts/Biogram.ipa
-            /Users/Shared/telegram-ios/build/artifacts/Biogram.DSYMs.zip
+            /Users/Shared/telegram-ios/build/artifacts/Rubygram.ipa
+            /Users/Shared/telegram-ios/build/artifacts/Rubygram.DSYMs.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
