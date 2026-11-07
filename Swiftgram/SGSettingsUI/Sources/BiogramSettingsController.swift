@@ -1686,8 +1686,12 @@ private final class BiogramProfileCardDesignerController: ViewController {
 
     private func saveStyle() {
         BiogramManager.shared.setProfileCardStyle(self.style) { [weak self] in
-            guard let self else { return }
-            self.refreshCard()
+            // BiogramStorage completes writes on its own background queue.
+            // Refresh the UIKit card only after hopping back to the main queue.
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.refreshCard()
+            }
         }
     }
 
