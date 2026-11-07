@@ -574,7 +574,6 @@ public func biogramSettingsController(context: AccountContext) -> ViewController
     }
     // =====================================================================
     var presentControllerImpl: ((ViewController, Any?) -> Void)?
-    var pushControllerImpl: ((ViewController) -> Void)?
 
     let arguments = BiogramArguments(
         togglePremium: { enabled in
@@ -805,10 +804,6 @@ public func biogramSettingsController(context: AccountContext) -> ViewController
     presentControllerImpl = { [weak controller] c, a in
         controller?.present(c, in: .window(.root), with: a)
     }
-    pushControllerImpl = { [weak controller] c in
-        (controller?.navigationController as? NavigationController)?.pushViewController(c)
-    }
-
     return controller
 }
 // MARK: - Fog Wallet cards
