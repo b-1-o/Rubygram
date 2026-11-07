@@ -10,6 +10,19 @@ import PresentationDataUtils
 import Biogram
 import SGStrings
 
+import ObjectiveC
+
+private var ghostModeDeletedMessagesToggleTargetAssociationKey: UInt8 = 0
+
+private final class GhostModeDeletedMessagesToggleTarget: NSObject {
+    var onTap: (() -> Void)?
+
+    @objc func tapped() {
+        self.onTap?()
+    }
+}
+
+
 private enum DeletedBrowserMode {
     case chats
     case tabs
@@ -205,9 +218,9 @@ public func ghostModeDeletedMessagesController(context: AccountContext) -> ViewC
         (controller?.navigationController as? NavigationController)?.pushViewController(c)
     }
 
-    // Three-dots style: toggle chats <-> tabs
-    let toggleButton = UIBarButtonItem(image: UIImage(systemName: "ellipsis"), style: .plain, target: nil, action: nil)
-    toggleButton.primaryAction = UIAction { _ in
+    // Three-dots style: toggle chats <-> tabs (iOS 13-compatible target/action).
+    let toggleTarget = GhostModeDeletedMessagesToggleTarget()
+    toggleTarget.onTap = { [weak controller] in
         let sheet = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
         if mode == .chats {
             sheet.addAction(UIAlertAction(title: "GhostMode.DeletedMessages.ShowTabs".i18n(context.sharedContext.currentPresentationData.with { $0 }.strings.baseLanguageCode), style: .default, handler: { _ in
@@ -228,8 +241,21 @@ public func ghostModeDeletedMessagesController(context: AccountContext) -> ViewC
             }
         }
         sheet.addAction(UIAlertAction(title: context.sharedContext.currentPresentationData.with { $0 }.strings.Common_Cancel, style: .cancel))
-        controller.view.window?.rootViewController?.present(sheet, animated: true)
+        controller?.view.window?.rootViewController?.present(sheet, animated: true)
     }
+    let toggleButton = UIBarButtonItem(
+        image: UIImage(systemName: "ellipsis"),
+        style: .plain,
+        target: toggleTarget,
+        action: #selector(GhostModeDeletedMessagesToggleTarget.tapped)
+    )
+    // UIBarButtonItem's target isn't owned by the button; retain it for as long as the button lives.
+    objc_setAssociatedObject(
+        toggleButton,
+        &ghostModeDeletedMessagesToggleTargetAssociationKey,
+        toggleTarget,
+        .OBJC_ASSOCIATION_RETAIN_NONATOMIC
+    )
     controller.navigationItem.rightBarButtonItem = toggleButton
 
     return controller
