@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="rubygram.jpeg" alt="Rubygram Banner" width="100%">
+  <img src="Telegram/Telegram-iOS/Swiftgram.icon/Assets/rubygram.jpeg" alt="Rubygram Banner" width="100%">
 </div>
 
 
