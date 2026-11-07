@@ -38,8 +38,8 @@
             }
           ],
           "glass" : false,
-          "image-name" : "Biogram.png",
-          "name" : "Biogram",
+          "image-name" : "Rubygram.png",
+          "name" : "Rubygram",
           "opacity-specializations" : [
             {
               "value" : 1
