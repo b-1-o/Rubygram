@@ -38,8 +38,9 @@ struct ChatHistoryEntriesForViewState {
 /// Resolves Ghost Mode's durable local copy through Telegram's built-in file resource.
 /// The deterministic resource ID keeps MediaBox identity stable across chat redraws.
 private func ghostModeLocalMediaResource(
-    from snapshot: GhostModeDeletedMessage
-) -> LocalFileReferenceMediaResource? {
+    from snapshot: GhostModeDeletedMessage,
+    mediaBox: MediaBox
+) -> LocalFileMediaResource? {
     guard let path = snapshot.localMediaPath,
           FileManager.default.fileExists(atPath: path) else {
         return nil
@@ -53,18 +54,35 @@ private func ghostModeLocalMediaResource(
         hash = hash &* 1099511628211
     }
 
-    return LocalFileReferenceMediaResource(
-        localFilePath: path,
-        randomId: Int64(bitPattern: hash),
+    let resource = LocalFileMediaResource(
+        fileId: Int64(bitPattern: hash),
         size: snapshot.fileSize
     )
+
+    // Telegram's viewers read complete resources from MediaBox. A LocalFileReference
+    // only carries a source path; it does not populate the MediaBox cache entry.
+    if mediaBox.completedResourcePath(resource) == nil {
+        guard let data = try? Data(
+            contentsOf: URL(fileURLWithPath: path),
+            options: [.mappedIfSafe]
+        ) else {
+            return nil
+        }
+        mediaBox.storeResourceData(resource.id, data: data, synchronous: true)
+    }
+
+    guard mediaBox.completedResourcePath(resource) != nil else {
+        return nil
+    }
+    return resource
 }
 
 private func ghostModeMessage(
     from snapshot: GhostModeDeletedMessage,
     chatPeer: Peer,
     accountPeerId: PeerId,
-    peers: SimpleDictionary<PeerId, Peer>
+    peers: SimpleDictionary<PeerId, Peer>,
+    mediaBox: MediaBox
 ) -> Message? {
     guard snapshot.peerId != 0 else {
         return nil
@@ -110,7 +128,7 @@ private func ghostModeMessage(
     }
 
     var media: [Media] = []
-    if let resource = ghostModeLocalMediaResource(from: snapshot) {
+    if let resource = ghostModeLocalMediaResource(from: snapshot, mediaBox: mediaBox) {
         let mediaType = snapshot.mediaType
             ?? ((snapshot.mediaSummary ?? "").contains("TelegramMediaImage") ? "image" : "file")
         let dimensions = PixelDimensions(
@@ -709,7 +727,8 @@ func chatHistoryEntriesForView(
                 from: snapshot,
                 chatPeer: chatPeer,
                 accountPeerId: context.account.peerId,
-                peers: ghostPeerDictionary
+                peers: ghostPeerDictionary,
+                mediaBox: context.account.postbox.mediaBox
             ) else {
                 continue
             }
