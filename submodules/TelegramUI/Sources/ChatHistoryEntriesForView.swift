@@ -59,20 +59,11 @@ private func ghostModeLocalMediaResource(
         size: snapshot.fileSize
     )
 
-    // Telegram's viewers read complete resources from MediaBox. A LocalFileReference
-    // only carries a source path; it does not populate the MediaBox cache entry.
+    // Telegram's viewers read completed resources from MediaBox. Copy the
+    // durable Ghost Mode file into MediaBox's cache before the message is rendered.
+    // MediaBox performs this copy on its own data queue.
     if mediaBox.completedResourcePath(resource) == nil {
-        guard let data = try? Data(
-            contentsOf: URL(fileURLWithPath: path),
-            options: [.mappedIfSafe]
-        ) else {
-            return nil
-        }
-        mediaBox.storeResourceData(resource.id, data: data, synchronous: true)
-    }
-
-    guard mediaBox.completedResourcePath(resource) != nil else {
-        return nil
+        mediaBox.copyResourceData(resource.id, fromTempPath: path)
     }
     return resource
 }
