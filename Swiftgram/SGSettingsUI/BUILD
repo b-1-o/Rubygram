@@ -30,6 +30,7 @@ swift_library(
         "//submodules/TelegramPresentationData:TelegramPresentationData",
         "//submodules/TelegramUIPreferences:TelegramUIPreferences",
         "//submodules/ItemListUI:ItemListUI",
+        "//submodules/SearchBarNode:SearchBarNode",
         "//submodules/PresentationDataUtils:PresentationDataUtils",
         "//submodules/OverlayStatusController:OverlayStatusController",
         "//submodules/AccountContext:AccountContext",

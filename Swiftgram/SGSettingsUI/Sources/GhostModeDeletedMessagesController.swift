@@ -6,6 +6,7 @@ import TelegramCore
 import Postbox
 import TelegramPresentationData
 import ItemListUI
+import SearchBarNode
 import AccountContext
 import PresentationDataUtils
 import Biogram
@@ -14,7 +15,6 @@ import SGStrings
 import ObjectiveC
 
 private var ghostModeDeletedMessagesToggleTargetAssociationKey: UInt8 = 0
-private var ghostModeDeletedMessagesSearchTargetAssociationKey: UInt8 = 0
 
 private func ghostModeDeletedMessageIcon(_ message: GhostModeDeletedMessage) -> UIImage? {
     let summary = (message.mediaSummary ?? "").lowercased()
@@ -64,11 +64,114 @@ private final class GhostModeDeletedMessagesToggleTarget: NSObject {
     }
 }
 
-private final class GhostModeDeletedMessagesSearchTarget: NSObject, UISearchResultsUpdating {
+private final class GhostModeDeletedMessagesSearchNode: ItemListControllerSearchNode {
     var onQueryUpdated: ((String) -> Void)?
 
-    func updateSearchResults(for searchController: UISearchController) {
-        self.onQueryUpdated?(searchController.searchBar.text ?? "")
+    override func queryUpdated(_ query: String) {
+        self.onQueryUpdated?(query)
+    }
+}
+
+private final class GhostModeDeletedMessagesSearchNavigationNode: NavigationBarContentNode, ItemListControllerSearchNavigationContentNode {
+    private let searchBar: SearchBarNode
+    private var queryUpdated: ((String) -> Void)?
+
+    init(presentationData: ItemListPresentationData) {
+        let theme = presentationData.theme
+        let searchBarTheme = SearchBarNodeTheme(
+            background: .clear,
+            separator: .clear,
+            inputFill: .clear,
+            primaryText: theme.chat.inputPanel.panelControlColor,
+            placeholder: theme.chat.inputPanel.inputPlaceholderColor,
+            inputIcon: theme.chat.inputPanel.inputControlColor,
+            inputClear: theme.chat.inputPanel.panelControlColor,
+            accent: theme.chat.inputPanel.panelControlAccentColor,
+            keyboard: theme.rootController.keyboardColor
+        )
+        self.searchBar = SearchBarNode(
+            theme: searchBarTheme,
+            presentationTheme: theme,
+            strings: presentationData.strings,
+            fieldStyle: .inlineNavigation,
+            forceSeparator: false,
+            displayBackground: false,
+            cancelText: nil
+        )
+
+        super.init()
+
+        self.searchBar.hasCancelButton = false
+        self.searchBar.autocapitalization = .none
+        self.searchBar.placeholderString = NSAttributedString(
+            string: "Search chats or @username",
+            font: Font.regular(17.0),
+            textColor: theme.chat.inputPanel.inputPlaceholderColor
+        )
+        self.searchBar.textUpdated = { [weak self] query, _ in
+            self?.queryUpdated?(query)
+        }
+        self.view.addSubview(self.searchBar.view)
+    }
+
+    override public var nominalHeight: CGFloat {
+        return 44.0
+    }
+
+    func activate() {
+        // Keep the list keyboard-free on first display; tapping the field focuses it.
+    }
+
+    func deactivate() {
+        self.searchBar.deactivate(clear: false)
+    }
+
+    func setQueryUpdated(_ f: @escaping (String) -> Void) {
+        self.queryUpdated = f
+    }
+
+    override public func updateLayout(size: CGSize, leftInset: CGFloat, rightInset: CGFloat, transition: ContainedViewLayoutTransition) -> CGSize {
+        let frame = CGRect(
+            x: leftInset,
+            y: 0.0,
+            width: max(1.0, size.width - leftInset - rightInset),
+            height: size.height
+        )
+        self.searchBar.view.frame = frame
+        self.searchBar.updateLayout(
+            boundingSize: frame.size,
+            leftInset: 0.0,
+            rightInset: 0.0,
+            transition: transition
+        )
+        return size
+    }
+}
+
+private final class GhostModeDeletedMessagesSearchItem: ItemListControllerSearch {
+    private let presentationData: ItemListPresentationData
+    private let onQueryUpdated: (String) -> Void
+
+    init(presentationData: ItemListPresentationData, onQueryUpdated: @escaping (String) -> Void) {
+        self.presentationData = presentationData
+        self.onQueryUpdated = onQueryUpdated
+    }
+
+    func isEqual(to other: ItemListControllerSearch) -> Bool {
+        return self === (other as? GhostModeDeletedMessagesSearchItem)
+    }
+
+    func titleContentNode(current: (NavigationBarContentNode & ItemListControllerSearchNavigationContentNode)?) -> (NavigationBarContentNode & ItemListControllerSearchNavigationContentNode)? {
+        let node = (current as? GhostModeDeletedMessagesSearchNavigationNode)
+            ?? GhostModeDeletedMessagesSearchNavigationNode(presentationData: self.presentationData)
+        node.setQueryUpdated(self.onQueryUpdated)
+        return node
+    }
+
+    func node(current: ItemListControllerSearchNode?, titleContentNode: (NavigationBarContentNode & ItemListControllerSearchNavigationContentNode)?) -> ItemListControllerSearchNode {
+        let node = (current as? GhostModeDeletedMessagesSearchNode) ?? GhostModeDeletedMessagesSearchNode()
+        node.onQueryUpdated = self.onQueryUpdated
+        return node
     }
 }
 
@@ -295,6 +398,14 @@ public func ghostModeDeletedMessagesController(context: AccountContext) -> ViewC
         statePromise.set(.single(latestItems))
     }
 
+    let searchItem = GhostModeDeletedMessagesSearchItem(
+        presentationData: ItemListPresentationData(context.sharedContext.currentPresentationData.with { $0 }),
+        onQueryUpdated: { query in
+            searchQuery = query
+            updateState()
+        }
+    )
+
     let loadPeerName: (PeerId) -> Void = { peerId in
         guard peerNames[peerId] == nil,
               pendingPeerNameRequests.insert(peerId).inserted else {
@@ -313,10 +424,10 @@ public func ghostModeDeletedMessagesController(context: AccountContext) -> ViewC
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
             let displayName: String
-            if !indexedTitle.isEmpty {
-                displayName = indexedTitle
-            } else if !username.isEmpty {
+            if !username.isEmpty {
                 displayName = username.hasPrefix("@") ? username : "@\(username)"
+            } else if !indexedTitle.isEmpty {
+                displayName = indexedTitle
             } else if !fallbackTitle.isEmpty {
                 displayName = fallbackTitle
             } else {
@@ -391,6 +502,7 @@ public func ghostModeDeletedMessagesController(context: AccountContext) -> ViewC
             entries: entries,
             style: .blocks,
             emptyStateItem: nil,
+            searchItem: mode == .chats ? searchItem : nil,
             animateChanges: false
         )
         return (controllerState, (listState, arguments))
@@ -400,28 +512,6 @@ public func ghostModeDeletedMessagesController(context: AccountContext) -> ViewC
     pushImpl = { [weak controller] viewController in
         (controller?.navigationController as? NavigationController)?.pushViewController(viewController)
     }
-
-    let searchController = UISearchController(searchResultsController: nil)
-    let searchTarget = GhostModeDeletedMessagesSearchTarget()
-    searchTarget.onQueryUpdated = { query in
-        searchQuery = query
-        updateState()
-    }
-    searchController.searchResultsUpdater = searchTarget
-    searchController.obscuresBackgroundDuringPresentation = false
-    searchController.hidesNavigationBarDuringPresentation = false
-    searchController.searchBar.placeholder = "Search chats"
-    searchController.searchBar.autocapitalizationType = .none
-    controller.navigationItem.searchController = searchController
-    controller.navigationItem.hidesSearchBarWhenScrolling = false
-    controller.definesPresentationContext = true
-
-    objc_setAssociatedObject(
-        controller,
-        &ghostModeDeletedMessagesSearchTargetAssociationKey,
-        searchTarget,
-        .OBJC_ASSOCIATION_RETAIN_NONATOMIC
-    )
 
     // Three-dots style: toggle chats <-> tabs (iOS 13-compatible target/action).
     let toggleTarget = GhostModeDeletedMessagesToggleTarget()
@@ -433,8 +523,7 @@ public func ghostModeDeletedMessagesController(context: AccountContext) -> ViewC
                 style: .default,
                 handler: { _ in
                     mode = .tabs
-                    searchController.isActive = false
-                    controller?.navigationItem.searchController = nil
+                    searchQuery = ""
                     reload()
                 }
             ))
@@ -444,7 +533,6 @@ public func ghostModeDeletedMessagesController(context: AccountContext) -> ViewC
                 style: .default,
                 handler: { _ in
                     mode = .chats
-                    controller?.navigationItem.searchController = searchController
                     reload()
                 }
             ))
