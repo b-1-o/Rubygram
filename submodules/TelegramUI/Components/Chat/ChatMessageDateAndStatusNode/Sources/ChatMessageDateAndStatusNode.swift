@@ -276,7 +276,7 @@ public class ChatMessageDateAndStatusNode: ASDisplayNode {
     private var selfExpiringIcon: ASImageNode?
     private var ghostDeletedIcon: ASImageNode?
     // Asset: SelfExpiring.imageset/ic_autodeleteindicator.pdf
-    private let ghostDeletedIconImage: UIImage? = UIImage(bundleImageName: "Chat/Message/SelfExpiring")
+    private let ghostDeletedIconImage: UIImage? = UIImage(bundleImageName: "Chat/Message/TrashIcon")?.withRenderingMode(.alwaysTemplate)
     private var replyCountNode: TextNode?
     private var starsIcon: ASImageNode?
     private var starsCountNode: TextNode?
@@ -1258,6 +1258,7 @@ public class ChatMessageDateAndStatusNode: ASDisplayNode {
                            let ghostDeletedIconFrame = ghostDeletedIconFrame,
                            let image = strongSelf.ghostDeletedIconImage {
                             ghostDeletedIconNode.image = image
+                            ghostDeletedIconNode.tintColor = dateColor
                             let actualFrame = ghostDeletedIconFrame.offsetBy(
                                 dx: leftOffset + backgroundInsets.left + reactionInset,
                                 dy: backgroundInsets.top + verticalInset
