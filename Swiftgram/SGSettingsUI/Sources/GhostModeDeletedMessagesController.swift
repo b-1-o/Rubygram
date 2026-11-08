@@ -3,6 +3,7 @@ import UIKit
 import Display
 import SwiftSignalKit
 import TelegramCore
+import Postbox
 import TelegramPresentationData
 import ItemListUI
 import AccountContext
@@ -13,6 +14,7 @@ import SGStrings
 import ObjectiveC
 
 private var ghostModeDeletedMessagesToggleTargetAssociationKey: UInt8 = 0
+private var ghostModeDeletedMessagesSearchTargetAssociationKey: UInt8 = 0
 
 private func ghostModeDeletedMessageIcon(_ message: GhostModeDeletedMessage) -> UIImage? {
     let summary = (message.mediaSummary ?? "").lowercased()
@@ -62,6 +64,14 @@ private final class GhostModeDeletedMessagesToggleTarget: NSObject {
     }
 }
 
+private final class GhostModeDeletedMessagesSearchTarget: NSObject, UISearchResultsUpdating {
+    var onQueryUpdated: ((String) -> Void)?
+
+    func updateSearchResults(for searchController: UISearchController) {
+        self.onQueryUpdated?(searchController.searchBar.text ?? "")
+    }
+}
+
 
 private enum DeletedBrowserMode {
     case chats
@@ -90,7 +100,7 @@ private enum DeletedEntryId: Hashable {
 
 private enum DeletedEntry: ItemListNodeEntry {
     case empty(String)
-    case chat(peerId: Int64, count: Int)
+    case chat(peerId: Int64, count: Int, title: String)
     case item(GhostModeDeletedMessage)
     case clear
     case tabHeader(String)
@@ -105,7 +115,7 @@ private enum DeletedEntry: ItemListNodeEntry {
     var stableId: DeletedEntryId {
         switch self {
         case .empty: return .empty
-        case let .chat(peerId, _): return .chat(peerId)
+        case let .chat(peerId, _, _): return .chat(peerId)
         case let .item(m): return .item(m.id)
         case .clear: return .clear
         case .tabHeader: return .tabHeader
@@ -122,10 +132,10 @@ private enum DeletedEntry: ItemListNodeEntry {
         switch self {
         case let .empty(text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
-        case let .chat(peerId, count):
+        case let .chat(peerId, count, title):
             return ItemListDisclosureItem(
                 presentationData: presentationData,
-                title: "Chat \(peerId)",
+                title: title,
                 label: "\(count)",
                 sectionId: self.section,
                 style: .blocks,
@@ -181,39 +191,90 @@ private final class DeletedArguments {
     }
 }
 
-private func buildEntries(mode: DeletedBrowserMode, tab: DeletedTab, items: [GhostModeDeletedMessage], lang: String) -> [DeletedEntry] {
+private func buildEntries(
+    mode: DeletedBrowserMode,
+    tab: DeletedTab,
+    items: [GhostModeDeletedMessage],
+    lang: String,
+    peerNames: [PeerId: String],
+    peerUsernames: [PeerId: String],
+    searchQuery: String
+) -> [DeletedEntry] {
     var entries: [DeletedEntry] = []
     if items.isEmpty {
         entries.append(.empty("GhostMode.DeletedMessages.Empty".i18n(lang)))
         return entries
     }
+
     switch mode {
     case .chats:
         var counts: [Int64: Int] = [:]
-        for m in items { counts[m.peerId, default: 0] += 1 }
-        for (peerId, count) in counts.sorted(by: { $0.key < $1.key }) {
-            entries.append(.chat(peerId: peerId, count: count))
+        for message in items {
+            counts[message.peerId, default: 0] += 1
+        }
+
+        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sortedChats = counts.sorted(by: { $0.key < $1.key })
+        let filteredChats = sortedChats.filter { entry in
+            guard !query.isEmpty else {
+                return true
+            }
+
+            let peerId = PeerId(entry.key)
+            let name = peerNames[peerId] ?? "Unknown"
+            let username = peerUsernames[peerId] ?? ""
+            let searchableUsername = username.isEmpty ? "" : (username.hasPrefix("@") ? username : "@\(username)")
+            return name.localizedCaseInsensitiveContains(query)
+                || searchableUsername.localizedCaseInsensitiveContains(query)
+        }
+
+        if filteredChats.isEmpty {
+            entries.append(.empty(query.isEmpty ? "GhostMode.DeletedMessages.Empty".i18n(lang) : "No chats found"))
+        } else {
+            for entry in filteredChats {
+                let peerId = entry.key
+                let count = entry.value
+                let title = peerNames[PeerId(peerId)] ?? "Unknown"
+                entries.append(.chat(peerId: peerId, count: count, title: title))
+            }
         }
         entries.append(.clear)
+
     case .tabs:
         let filtered: [GhostModeDeletedMessage]
         switch tab {
         case .media:
-            filtered = items.filter { ($0.mediaSummary ?? "").lowercased().contains("image") || ($0.mediaSummary ?? "").lowercased().contains("video") }
+            filtered = items.filter {
+                ($0.mediaSummary ?? "").lowercased().contains("image")
+                    || ($0.mediaSummary ?? "").lowercased().contains("video")
+            }
         case .files:
-            filtered = items.filter { ($0.mediaSummary ?? "").lowercased().contains("file") || ($0.mediaSummary ?? "").lowercased().contains("document") }
+            filtered = items.filter {
+                ($0.mediaSummary ?? "").lowercased().contains("file")
+                    || ($0.mediaSummary ?? "").lowercased().contains("document")
+            }
         case .voice:
-            filtered = items.filter { ($0.mediaSummary ?? "").lowercased().contains("voice") || ($0.mediaSummary ?? "").lowercased().contains("audio") }
+            filtered = items.filter {
+                ($0.mediaSummary ?? "").lowercased().contains("voice")
+                    || ($0.mediaSummary ?? "").lowercased().contains("audio")
+            }
         case .rounds:
-            filtered = items.filter { ($0.mediaSummary ?? "").lowercased().contains("round") || ($0.mediaSummary ?? "").lowercased().contains("instant") }
+            filtered = items.filter {
+                ($0.mediaSummary ?? "").lowercased().contains("round")
+                    || ($0.mediaSummary ?? "").lowercased().contains("instant")
+            }
         }
+
         if filtered.isEmpty {
             entries.append(.empty("GhostMode.DeletedMessages.Empty".i18n(lang)))
         } else {
-            for m in filtered { entries.append(.item(m)) }
+            for message in filtered {
+                entries.append(.item(message))
+            }
         }
         entries.append(.clear)
     }
+
     return entries
 }
 
@@ -222,10 +283,64 @@ public func ghostModeDeletedMessagesController(context: AccountContext) -> ViewC
     var tab: DeletedTab = .media
     var pushImpl: ((ViewController) -> Void)?
 
+    var latestItems: [GhostModeDeletedMessage] = []
+    var peerNames: [PeerId: String] = [:]
+    var peerUsernames: [PeerId: String] = [:]
+    var pendingPeerNameRequests: Set<PeerId> = []
+    var searchQuery = ""
+
     let statePromise = Promise<[GhostModeDeletedMessage]>([])
+
+    let updateState: () -> Void = {
+        statePromise.set(.single(latestItems))
+    }
+
+    let loadPeerName: (PeerId) -> Void = { peerId in
+        guard peerNames[peerId] == nil,
+              pendingPeerNameRequests.insert(peerId).inserted else {
+            return
+        }
+
+        Task { @MainActor in
+            let peer = await context.engine.data.get(
+                TelegramEngine.EngineData.Item.Peer.Peer(id: peerId)
+            ).get()
+
+            let username = peer?.addressName ?? ""
+            let indexedTitle = peer?.indexName.stringRepresentation(lastNameFirst: false)
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let fallbackTitle = peer?.debugDisplayTitle
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+            let displayName: String
+            if !indexedTitle.isEmpty {
+                displayName = indexedTitle
+            } else if !username.isEmpty {
+                displayName = username.hasPrefix("@") ? username : "@\(username)"
+            } else if !fallbackTitle.isEmpty {
+                displayName = fallbackTitle
+            } else {
+                displayName = "Unknown"
+            }
+
+            peerNames[peerId] = displayName
+            peerUsernames[peerId] = username
+            pendingPeerNameRequests.remove(peerId)
+            updateState()
+        }
+    }
+
     let reload: () -> Void = {
         GhostModeDeletedMessagesStorage.shared.fetchAll { items in
-            statePromise.set(.single(items))
+            DispatchQueue.main.async {
+                latestItems = items
+                statePromise.set(.single(items))
+
+                let peerIds = Set(items.map { PeerId($0.peerId) })
+                for peerId in peerIds {
+                    loadPeerName(peerId)
+                }
+            }
         }
     }
     reload()
@@ -239,10 +354,23 @@ public func ghostModeDeletedMessagesController(context: AccountContext) -> ViewC
         }
     )
 
-    let signal: Signal<(ItemListControllerState, (ItemListNodeState, DeletedArguments)), NoError> = combineLatest(queue: .mainQueue(), context.sharedContext.presentationData, statePromise.get())
+    let signal: Signal<(ItemListControllerState, (ItemListNodeState, DeletedArguments)), NoError> = combineLatest(
+        queue: .mainQueue(),
+        context.sharedContext.presentationData,
+        statePromise.get()
+    )
     |> map { presentationData, items -> (ItemListControllerState, (ItemListNodeState, DeletedArguments)) in
         let lang = presentationData.strings.baseLanguageCode
-        let entries = buildEntries(mode: mode, tab: tab, items: items, lang: lang)
+        let entries = buildEntries(
+            mode: mode,
+            tab: tab,
+            items: items,
+            lang: lang,
+            peerNames: peerNames,
+            peerUsernames: peerUsernames,
+            searchQuery: searchQuery
+        )
+
         let controllerState = ItemListControllerState(
             presentationData: ItemListPresentationData(presentationData),
             title: .text("GhostMode.DeletedMessages.Title".i18n(lang)),
@@ -269,42 +397,85 @@ public func ghostModeDeletedMessagesController(context: AccountContext) -> ViewC
     }
 
     let controller = ItemListController(context: context, state: signal)
-    pushImpl = { [weak controller] c in
-        (controller?.navigationController as? NavigationController)?.pushViewController(c)
+    pushImpl = { [weak controller] viewController in
+        (controller?.navigationController as? NavigationController)?.pushViewController(viewController)
     }
+
+    let searchController = UISearchController(searchResultsController: nil)
+    let searchTarget = GhostModeDeletedMessagesSearchTarget()
+    searchTarget.onQueryUpdated = { query in
+        searchQuery = query
+        updateState()
+    }
+    searchController.searchResultsUpdater = searchTarget
+    searchController.obscuresBackgroundDuringPresentation = false
+    searchController.hidesNavigationBarDuringPresentation = false
+    searchController.searchBar.placeholder = "Search chats"
+    searchController.searchBar.autocapitalizationType = .none
+    controller.navigationItem.searchController = searchController
+    controller.navigationItem.hidesSearchBarWhenScrolling = false
+    controller.definesPresentationContext = true
+
+    objc_setAssociatedObject(
+        controller,
+        &ghostModeDeletedMessagesSearchTargetAssociationKey,
+        searchTarget,
+        .OBJC_ASSOCIATION_RETAIN_NONATOMIC
+    )
 
     // Three-dots style: toggle chats <-> tabs (iOS 13-compatible target/action).
     let toggleTarget = GhostModeDeletedMessagesToggleTarget()
     toggleTarget.onTap = { [weak controller] in
         let sheet = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
         if mode == .chats {
-            sheet.addAction(UIAlertAction(title: "GhostMode.DeletedMessages.ShowTabs".i18n(context.sharedContext.currentPresentationData.with { $0 }.strings.baseLanguageCode), style: .default, handler: { _ in
-                mode = .tabs
-                reload()
-            }))
-        } else {
-            sheet.addAction(UIAlertAction(title: "GhostMode.DeletedMessages.ShowChats".i18n(context.sharedContext.currentPresentationData.with { $0 }.strings.baseLanguageCode), style: .default, handler: { _ in
-                mode = .chats
-                reload()
-            }))
-            for (title, t) in [("Media", DeletedTab.media), ("Files", DeletedTab.files), ("Voice", DeletedTab.voice), ("Rounds", DeletedTab.rounds)] {
-                sheet.addAction(UIAlertAction(title: title, style: .default, handler: { _ in
-                    tab = t
+            sheet.addAction(UIAlertAction(
+                title: "GhostMode.DeletedMessages.ShowTabs".i18n(context.sharedContext.currentPresentationData.with { $0 }.strings.baseLanguageCode),
+                style: .default,
+                handler: { _ in
                     mode = .tabs
+                    searchController.isActive = false
+                    controller?.navigationItem.searchController = nil
+                    reload()
+                }
+            ))
+        } else {
+            sheet.addAction(UIAlertAction(
+                title: "GhostMode.DeletedMessages.ShowChats".i18n(context.sharedContext.currentPresentationData.with { $0 }.strings.baseLanguageCode),
+                style: .default,
+                handler: { _ in
+                    mode = .chats
+                    controller?.navigationItem.searchController = searchController
+                    reload()
+                }
+            ))
+            for (title, selectedTab) in [
+                ("Media", DeletedTab.media),
+                ("Files", DeletedTab.files),
+                ("Voice", DeletedTab.voice),
+                ("Rounds", DeletedTab.rounds)
+            ] {
+                sheet.addAction(UIAlertAction(title: title, style: .default, handler: { _ in
+                    tab = selectedTab
+                    mode = .tabs
+                    searchController.isActive = false
+                    controller?.navigationItem.searchController = nil
                     reload()
                 }))
             }
         }
-        sheet.addAction(UIAlertAction(title: context.sharedContext.currentPresentationData.with { $0 }.strings.Common_Cancel, style: .cancel))
+        sheet.addAction(UIAlertAction(
+            title: context.sharedContext.currentPresentationData.with { $0 }.strings.Common_Cancel,
+            style: .cancel
+        ))
         controller?.view.window?.rootViewController?.present(sheet, animated: true)
     }
+
     let toggleButton = UIBarButtonItem(
         image: UIImage(systemName: "ellipsis"),
         style: .plain,
         target: toggleTarget,
         action: #selector(GhostModeDeletedMessagesToggleTarget.tapped)
     )
-    // UIBarButtonItem's target isn't owned by the button; retain it for as long as the button lives.
     objc_setAssociatedObject(
         toggleButton,
         &ghostModeDeletedMessagesToggleTargetAssociationKey,
@@ -315,7 +486,6 @@ public func ghostModeDeletedMessagesController(context: AccountContext) -> ViewC
 
     return controller
 }
-
 public func ghostModeDeletedChatController(context: AccountContext, peerId: Int64) -> ViewController {
     let statePromise = Promise<[GhostModeDeletedMessage]>([])
     let reload: () -> Void = {
