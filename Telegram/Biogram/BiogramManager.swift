@@ -256,7 +256,9 @@ public final class BiogramManager {
         return BiogramProfileCardStyle(
             paletteName: storedStyle.paletteName,
             material: storedStyle.material,
-            imageFilename: storedStyle.imageFilename
+            imageFilename: storedStyle.imageFilename,
+            patternName: storedStyle.patternName ?? "none",
+            glowEnabled: storedStyle.glowEnabled ?? false
         )
     }
 
@@ -319,7 +321,9 @@ public final class BiogramManager {
         customizations.profileCardStyle = BiogramProfileCardStyle(
             paletteName: profile.cardStyle.paletteName,
             material: profile.cardStyle.material,
-            imageFilename: self.cachedCustomizations.profileCardStyle?.imageFilename
+            imageFilename: self.cachedCustomizations.profileCardStyle?.imageFilename,
+            patternName: profile.cardStyle.patternName ?? "none",
+            glowEnabled: profile.cardStyle.glowEnabled ?? false
         )
         self.cachedCustomizations = customizations
         self.cachedAliases = profile.aliases
@@ -363,11 +367,15 @@ public final class BiogramManager {
         NotificationCenter.default.post(name: .biogramStateDidChange, object: self)
 
         guard let image = profile.cardImage else {
-            self.isApplyingCloudProfile = false
-            if shouldRepublishNumbers {
-                BiogramCloudService.shared.scheduleLocalProfileSync(accountId: accountId)
+            // A cloud profile without artwork must clear an older local image too.
+            self.setProfileCardImage(nil) { [weak self] in
+                guard let self else { completion?(); return }
+                self.isApplyingCloudProfile = false
+                if shouldRepublishNumbers {
+                    BiogramCloudService.shared.scheduleLocalProfileSync(accountId: accountId)
+                }
+                completion?()
             }
-            completion?()
             return
         }
 
@@ -390,7 +398,9 @@ public final class BiogramManager {
         var normalized = BiogramProfileCardStyle(
             paletteName: style.paletteName,
             material: style.material,
-            imageFilename: custom.profileCardStyle?.imageFilename
+            imageFilename: custom.profileCardStyle?.imageFilename,
+            patternName: style.patternName ?? "none",
+            glowEnabled: style.glowEnabled ?? false
         )
         normalized.imageFilename = custom.profileCardStyle?.imageFilename
         custom.profileCardStyle = normalized

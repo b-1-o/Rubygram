@@ -148,26 +148,6 @@ func infoItems(
             items[.calls]!.append(PeerInfoScreenCallListItem(id: ItemCallList, messages: callMessages))
         }
         
-        if let personalChannel = data.personalChannel {
-            let peerId = personalChannel.peer.peerId
-            var label: String?
-            if let subscriberCount = personalChannel.subscriberCount {
-                label = presentationData.strings.Conversation_StatusSubscribers(Int32(subscriberCount))
-            }
-            items[.personalChannel]?.append(PeerInfoScreenHeaderItem(id: ItemPersonalChannelHeader, text: presentationData.strings.Profile_PersonalChannelSectionTitle, label: label))
-            items[.personalChannel]?.append(PeerInfoScreenPersonalChannelItem(id: ItemPersonalChannel, context: context, data: personalChannel, controller: { [weak interaction] in
-                guard let interaction else {
-                    return nil
-                }
-                return interaction.getController()
-            }, action: { [weak interaction] in
-                guard let interaction else {
-                    return
-                }
-                interaction.openChat(peerId)
-            }))
-        }
-        
         // Use the exact card artwork/material in a compact thumbnail inside the profile row.
         if isMyProfile || cachedBiogramProfile != nil {
             let displayName = EnginePeer(user).compactDisplayTitle
@@ -226,6 +206,26 @@ func infoItems(
                 )
             )
         }
+        if let personalChannel = data.personalChannel {
+            let peerId = personalChannel.peer.peerId
+            var label: String?
+            if let subscriberCount = personalChannel.subscriberCount {
+                label = presentationData.strings.Conversation_StatusSubscribers(Int32(subscriberCount))
+            }
+            items[.personalChannel]?.append(PeerInfoScreenHeaderItem(id: ItemPersonalChannelHeader, text: presentationData.strings.Profile_PersonalChannelSectionTitle, label: label))
+            items[.personalChannel]?.append(PeerInfoScreenPersonalChannelItem(id: ItemPersonalChannel, context: context, data: personalChannel, controller: { [weak interaction] in
+                guard let interaction else {
+                    return nil
+                }
+                return interaction.getController()
+            }, action: { [weak interaction] in
+                guard let interaction else {
+                    return
+                }
+                interaction.openChat(peerId)
+            }))
+        }
+        
 
         if let linkedCommunityData = data.linkedCommunityData {
             items[.community]!.append(PeerInfoScreenCommunityItem(

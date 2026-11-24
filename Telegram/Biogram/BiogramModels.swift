@@ -115,22 +115,38 @@ public struct BiogramProfileCardStyle: Codable, Equatable {
     public var material: String
     /// Local filename for optional front artwork. This is not an activation key.
     public var imageFilename: String?
+    /// Optional fields decode safely from earlier Biogram profile-card records.
+    public var patternName: String?
+    public var glowEnabled: Bool?
 
     public init(
         paletteName: String = "Dark Red",
         material: String = "glossy",
-        imageFilename: String? = nil
+        imageFilename: String? = nil,
+        patternName: String = "none",
+        glowEnabled: Bool = false
     ) {
         let paletteNames = BiogramProfileColor.presets.map { $0.0 }
+        let patternNames = Self.patterns.map { $0.1 }
         self.paletteName = paletteNames.contains(paletteName) ? paletteName : "Dark Red"
         self.material = ["matte", "glossy", "metallic"].contains(material) ? material : "glossy"
         self.imageFilename = imageFilename
+        self.patternName = patternNames.contains(patternName) ? patternName : "none"
+        self.glowEnabled = glowEnabled
     }
 
     public static let materials: [(String, String)] = [
         ("Matte", "matte"),
         ("Glossy", "glossy"),
         ("Metallic", "metallic")
+    ]
+
+    public static let patterns: [(String, String)] = [
+        ("None", "none"),
+        ("Diagonal", "diagonal"),
+        ("Grid", "grid"),
+        ("Dots", "dots"),
+        ("Waves", "waves")
     ]
 }
 

@@ -935,6 +935,81 @@ private final class BiogramCardHashPatternView: UIView {
     }
 }
 
+private func drawBiogramCardPattern(_ patternName: String, context: CGContext, bounds: CGRect, opacity: CGFloat) {
+    guard patternName != "none", !bounds.isEmpty else { return }
+    context.saveGState()
+    context.clip(to: bounds)
+    context.setStrokeColor(UIColor.white.withAlphaComponent(opacity).cgColor)
+    context.setFillColor(UIColor.white.withAlphaComponent(opacity).cgColor)
+    context.setLineWidth(max(0.65, min(1.2, bounds.width / 120.0)))
+    let step = max(12.0, bounds.width / 6.0)
+    let path = UIBezierPath()
+    switch patternName {
+    case "diagonal":
+        var x = bounds.minX - bounds.height
+        while x <= bounds.maxX {
+            path.move(to: CGPoint(x: x, y: bounds.minY))
+            path.addLine(to: CGPoint(x: x + bounds.height, y: bounds.maxY))
+            x += step
+        }
+    case "grid":
+        var x = bounds.minX
+        while x <= bounds.maxX {
+            path.move(to: CGPoint(x: x, y: bounds.minY))
+            path.addLine(to: CGPoint(x: x, y: bounds.maxY))
+            x += step
+        }
+        var y = bounds.minY
+        while y <= bounds.maxY {
+            path.move(to: CGPoint(x: bounds.minX, y: y))
+            path.addLine(to: CGPoint(x: bounds.maxX, y: y))
+            y += step
+        }
+    case "dots":
+        var y = bounds.minY + step * 0.5
+        while y < bounds.maxY {
+            var x = bounds.minX + step * 0.5
+            while x < bounds.maxX {
+                path.append(UIBezierPath(ovalIn: CGRect(x: x - 1.2, y: y - 1.2, width: 2.4, height: 2.4)))
+                x += step
+            }
+            y += step
+        }
+        context.addPath(path.cgPath)
+        context.fillPath()
+        context.restoreGState()
+        return
+    case "waves":
+        var y = bounds.minY + step * 0.5
+        while y < bounds.maxY + step {
+            path.move(to: CGPoint(x: bounds.minX, y: y))
+            path.addCurve(to: CGPoint(x: bounds.maxX, y: y),
+                controlPoint1: CGPoint(x: bounds.minX + bounds.width * 0.30, y: y - step * 0.55),
+                controlPoint2: CGPoint(x: bounds.minX + bounds.width * 0.70, y: y + step * 0.55))
+            y += step
+        }
+    default: break
+    }
+    context.addPath(path.cgPath)
+    context.strokePath()
+    context.restoreGState()
+}
+
+private final class BiogramCardPatternOverlay: UIView {
+    var patternName = "none" { didSet { setNeedsDisplay() } }
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        isOpaque = false
+        isUserInteractionEnabled = false
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    override func draw(_ rect: CGRect) {
+        guard let context = UIGraphicsGetCurrentContext() else { return }
+        drawBiogramCardPattern(patternName, context: context, bounds: bounds, opacity: 0.13)
+    }
+}
+
 private final class Biogram3DProfileCardView: UIView {
     private let cardContainer = UIView()
     private let front = UIView()
@@ -942,9 +1017,11 @@ private final class Biogram3DProfileCardView: UIView {
     private let frontGradient = CAGradientLayer()
     private let frontArtwork = UIImageView()
     private let frontFrost = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
+    private let frontPatternOverlay = BiogramCardPatternOverlay()
     private let frontSheen = CAGradientLayer()
     private let backGradient = CAGradientLayer()
     private let backFrost = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
+    private let backPatternOverlay = BiogramCardPatternOverlay()
     private let backSheen = CAGradientLayer()
     private let backCipherLabel = UILabel()
     private let backMagneticStrip = UIView()
@@ -1004,6 +1081,7 @@ private final class Biogram3DProfileCardView: UIView {
         self.frontFrost.isUserInteractionEnabled = false
         self.frontFrost.alpha = 0.46
         self.front.addSubview(self.frontFrost)
+        self.front.addSubview(self.frontPatternOverlay)
 
         self.frontSheen.startPoint = CGPoint(x: 0.0, y: 0.0)
         self.frontSheen.endPoint = CGPoint(x: 1.0, y: 1.0)
@@ -1070,6 +1148,7 @@ private final class Biogram3DProfileCardView: UIView {
         self.backFrost.isUserInteractionEnabled = false
         self.backFrost.alpha = 0.40
         self.back.addSubview(self.backFrost)
+        self.back.addSubview(self.backPatternOverlay)
         self.backSheen.startPoint = CGPoint(x: 0.0, y: 0.2)
         self.backSheen.endPoint = CGPoint(x: 1.0, y: 0.8)
         self.back.layer.addSublayer(self.backSheen)
@@ -1206,10 +1285,11 @@ private final class Biogram3DProfileCardView: UIView {
         self.frontGradient.frame = self.front.bounds
         self.frontArtwork.frame = self.front.bounds
         self.frontFrost.frame = self.front.bounds
+        self.frontPatternOverlay.frame = self.front.bounds
         self.frontSheen.frame = self.front.bounds
         self.backGradient.frame = self.back.bounds
         self.backFrost.frame = self.back.bounds
-        self.backSheen.frame = self.back.bounds
+        self.backPatternOverlay.frame = self.back.bounds
         self.cardContainer.layer.shadowPath = UIBezierPath(roundedRect: self.cardContainer.bounds, cornerRadius: 25).cgPath
         self.applyTransform(animated: false)
     }
@@ -1230,6 +1310,13 @@ private final class Biogram3DProfileCardView: UIView {
 
         let (main, shade) = biogramCardPalette(style.paletteName)
         self.frontGradient.colors = [main.cgColor, shade.cgColor, biogramCardColor("#101014").cgColor]
+        let selectedPattern = style.patternName ?? "none"
+        self.frontPatternOverlay.patternName = selectedPattern
+        self.backPatternOverlay.patternName = selectedPattern
+        let glowEnabled = style.glowEnabled ?? false
+        self.cardContainer.layer.shadowColor = glowEnabled ? main.cgColor : UIColor.black.cgColor
+        self.cardContainer.layer.shadowOpacity = glowEnabled ? 0.62 : 0.42
+        self.cardContainer.layer.shadowRadius = glowEnabled ? 30 : 24
         self.frontArtwork.image = image
         self.frontArtwork.isHidden = image == nil
         self.brandLabel.text = "RUBYGRAM"
@@ -1399,6 +1486,8 @@ public func biogramProfileCardThumbnail(
             image.draw(in: imageRect, blendMode: .screen, alpha: 0.28)
         }
 
+        drawBiogramCardPattern(style.patternName ?? "none", context: cgContext, bounds: bounds, opacity: 0.18)
+
         let sheenColors = style.material == "matte"
             ? [UIColor.white.withAlphaComponent(0.12).cgColor, UIColor.clear.cgColor] as CFArray
             : [UIColor.white.withAlphaComponent(0.30).cgColor, UIColor.clear.cgColor, UIColor.white.withAlphaComponent(0.08).cgColor] as CFArray
@@ -1416,6 +1505,15 @@ public func biogramProfileCardThumbnail(
         }
         cgContext.restoreGState()
 
+        if style.glowEnabled ?? false {
+            cgContext.saveGState()
+            cgContext.setShadow(offset: .zero, blur: 5.0, color: main.withAlphaComponent(0.70).cgColor)
+            cgContext.setStrokeColor(main.withAlphaComponent(0.90).cgColor)
+            cgContext.setLineWidth(1.4)
+            cgContext.addPath(cardPath.cgPath)
+            cgContext.strokePath()
+            cgContext.restoreGState()
+        }
         cardPath.lineWidth = 0.8
         UIColor.white.withAlphaComponent(0.52).setStroke()
         cardPath.stroke()
@@ -1555,6 +1653,7 @@ private final class BiogramProfileCardDesignerController: ViewController {
         self.addCardPreview()
         self.addArtworkControls()
         self.addPaletteControls()
+        self.addPatternControls()
         self.addMaterialControls()
         self.addFooter()
         self.refreshCard()
@@ -1648,6 +1747,36 @@ private final class BiogramProfileCardDesignerController: ViewController {
         }
     }
 
+    private func addPatternControls() {
+        self.contentStack.addArrangedSubview(self.label("CARD PATTERN", size: 10, weight: .bold, color: biogramCardColor("#E7D7C0")))
+        for start in stride(from: 0, to: BiogramProfileCardStyle.patterns.count, by: 3) {
+            let row = UIStackView()
+            row.axis = .horizontal
+            row.distribution = .fillEqually
+            row.spacing = 8
+            for (title, value) in BiogramProfileCardStyle.patterns[start..<min(start + 3, BiogramProfileCardStyle.patterns.count)] {
+                row.addArrangedSubview(self.button(title, selected: (self.style.patternName ?? "none") == value) { [weak self] in
+                    guard let self else { return }
+                    self.style.patternName = value
+                    self.saveStyle()
+                })
+            }
+            while row.arrangedSubviews.count < 3 { row.addArrangedSubview(UIView()) }
+            self.contentStack.addArrangedSubview(row)
+        }
+        let glowRow = UIStackView()
+        glowRow.axis = .horizontal
+        glowRow.alignment = .center
+        glowRow.distribution = .equalSpacing
+        glowRow.addArrangedSubview(self.label("PALETTE EDGE GLOW", size: 11, weight: .semibold, color: UIColor.white.withAlphaComponent(0.76)))
+        glowRow.addArrangedSubview(self.button((self.style.glowEnabled ?? false) ? "Enabled" : "Disabled", selected: self.style.glowEnabled ?? false) { [weak self] in
+            guard let self else { return }
+            self.style.glowEnabled = !(self.style.glowEnabled ?? false)
+            self.saveStyle()
+        })
+        self.contentStack.addArrangedSubview(glowRow)
+    }
+
     private func addMaterialControls() {
         self.contentStack.addArrangedSubview(self.label("SURFACE FINISH", size: 10, weight: .bold, color: biogramCardColor("#E7D7C0")))
         let row = UIStackView()
@@ -1665,7 +1794,7 @@ private final class BiogramProfileCardDesignerController: ViewController {
     }
 
     private func addFooter() {
-        self.contentStack.addArrangedSubview(self.label("The member serial and profile signature are decorative identity details, not credentials. Your card artwork and material synchronize with your Rubygram profile.", size: 11, color: UIColor.white.withAlphaComponent(0.43), lines: 0))
+        self.contentStack.addArrangedSubview(self.label("The member serial and profile signature are decorative identity details, not credentials. Artwork, palette, material, pattern and edge glow synchronize with your Rubygram profile.", size: 11, color: UIColor.white.withAlphaComponent(0.43), lines: 0))
     }
 
     private func chooseArtwork() {

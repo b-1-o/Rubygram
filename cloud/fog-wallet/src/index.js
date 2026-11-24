@@ -7,6 +7,7 @@ const MAX_IMAGE_BYTES = 327680;
 const ALLOWED_PALETTES = new Set(["Blue", "Dark Red", "Purple", "Green", "Orange", "Teal", "Pink", "Gray", "Black", "White"]);
 const ALLOWED_MATERIALS = new Set(["matte", "glossy", "metallic"]);
 const ALLOWED_PATTERNS = new Set(["none", "skulls", "pentagrams", "stars", "crosses", "snowflakes", "frost"]);
+const ALLOWED_CARD_PATTERNS = new Set(["none", "diagonal", "grid", "dots", "waves"]);
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -341,6 +342,8 @@ function normalizeProfile(input) {
   const cardStyleInput = input && typeof input.cardStyle === "object" ? input.cardStyle : {};
   const paletteName = ALLOWED_PALETTES.has(cardStyleInput.paletteName) ? cardStyleInput.paletteName : "Dark Red";
   const material = ALLOWED_MATERIALS.has(cardStyleInput.material) ? cardStyleInput.material : "glossy";
+  const patternName = ALLOWED_CARD_PATTERNS.has(cardStyleInput.patternName) ? cardStyleInput.patternName : "none";
+  const glowEnabled = cardStyleInput.glowEnabled === true;
 
   let profileColor = null;
   if (input && input.profileColor && typeof input.profileColor === "object") {
@@ -381,7 +384,7 @@ function normalizeProfile(input) {
   return {
     profileColorEnabled: input?.profileColorEnabled === true && profileColor !== null,
     profileColor,
-    cardStyle: { paletteName, material },
+    cardStyle: { paletteName, material, patternName, glowEnabled },
     aliases,
     publicNumbers
   };

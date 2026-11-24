@@ -96,7 +96,10 @@ public final class GhostModeDeletedMessagesStorage {
     }
 
     private func fileURL(for accountId: String) -> URL {
-        return self.directory().appendingPathComponent("\(accountId).json")
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+        let safeId = String(accountId.unicodeScalars.map { allowed.contains($0) ? Character($0) : "_" })
+        let filename = safeId.isEmpty ? "default" : safeId
+        return self.directory().appendingPathComponent("\(filename).json")
     }
 
     public func insert(_ message: GhostModeDeletedMessage, completion: (() -> Void)? = nil) {
@@ -160,8 +163,37 @@ public final class GhostModeDeletedMessagesStorage {
 
     public func clear(completion: (() -> Void)? = nil) {
         self.queue.async {
+            let items = self.loadSync(accountId: self.currentAccountId)
+            self.removeLocalMediaFiles(for: items)
             self.saveSync([], accountId: self.currentAccountId)
             DispatchQueue.main.async { completion?() }
+        }
+    }
+
+    /// Removes only one chat's records and their local media, preserving the rest of the archive.
+    public func clear(peerId: Int64, completion: (() -> Void)? = nil) {
+        self.queue.async {
+            let items = self.loadSync(accountId: self.currentAccountId)
+            let removed = items.filter { $0.peerId == peerId }
+            let remaining = items.filter { $0.peerId != peerId }
+            self.removeLocalMediaFiles(for: removed)
+            self.saveSync(remaining, accountId: self.currentAccountId)
+            DispatchQueue.main.async { completion?() }
+        }
+    }
+
+    private func removeLocalMediaFiles(for items: [GhostModeDeletedMessage]) {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSTemporaryDirectory())
+        let mediaRoot = base.appendingPathComponent("GhostMode", isDirectory: true)
+            .appendingPathComponent("media", isDirectory: true)
+            .standardizedFileURL
+        let safePrefix = mediaRoot.path.hasSuffix("/") ? mediaRoot.path : mediaRoot.path + "/"
+
+        for path in items.compactMap(\.localMediaPath) {
+            let mediaURL = URL(fileURLWithPath: path).standardizedFileURL
+            guard mediaURL.path.hasPrefix(safePrefix) else { continue }
+            try? FileManager.default.removeItem(at: mediaURL)
         }
     }
 

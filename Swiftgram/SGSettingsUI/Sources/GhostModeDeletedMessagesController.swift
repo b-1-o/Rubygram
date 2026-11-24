@@ -584,9 +584,8 @@ public func ghostModeDeletedChatController(context: AccountContext, peerId: Int6
     reload()
 
     let arguments = DeletedArguments(openChat: { _ in }, clearAll: {
-        GhostModeDeletedMessagesStorage.shared.fetchAll(peerId: peerId) { items in
-            // Clear only this peer by rewriting storage without these ids — simple full clear of peer via re-fetch + filter not available; use clear-all fallback notice.
-            GhostModeDeletedMessagesStorage.shared.clear { reload() }
+        GhostModeDeletedMessagesStorage.shared.clear(peerId: peerId) {
+            reload()
         }
     })
 
