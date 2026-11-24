@@ -135,7 +135,7 @@ private func ghostModeCopyResource(
 
 // Capture a message before its expiring media is replaced or removed. The settings manager
 // persists this notification using the same snapshot format as ordinary message deletion.
-func ghostModeCaptureMessageSnapshot(message: Message, mediaBox: MediaBox, saveText: Bool, saveMedia: Bool) {
+public func ghostModeCaptureMessageSnapshot(message: Message, mediaBox: MediaBox, saveText: Bool, saveMedia: Bool) {
     guard saveText || saveMedia else { return }
     let hasSupportedMedia = message.media.contains { $0 is TelegramMediaImage || $0 is TelegramMediaFile }
     if !saveText && !hasSupportedMedia { return }
