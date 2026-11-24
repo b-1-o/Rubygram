@@ -233,7 +233,7 @@ public enum GhostModeDeletedMessageCapture {
         groupingKey: Int64? = nil, groupInfoStableId: UInt32? = nil
     ) {
         guard UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMessages") || UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMedia") else { return }
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "messageId": messageId,
             "peerId": peerId,
             "authorId": authorId as Any,
