@@ -183,6 +183,7 @@ public final class GhostModeDeletedMessagesStorage {
     }
 
     private func removeLocalMediaFiles(for items: [GhostModeDeletedMessage]) {
+        // Keep this path aligned with GhostModeLocalMediaResource.swift and the GalleryUI capture path.
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
         let mediaRoot = base.appendingPathComponent("GhostMode", isDirectory: true)
