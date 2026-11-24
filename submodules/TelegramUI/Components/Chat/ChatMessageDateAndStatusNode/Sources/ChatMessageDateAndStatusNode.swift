@@ -712,7 +712,7 @@ public class ChatMessageDateAndStatusNode: ASDisplayNode {
                 clockMinNode = nil
             }
 
-            if arguments.isGhostDeleted, self?.ghostDeletedIconImage != nil {
+            if arguments.isGhostDeleted {
                 let iconSize = CGSize(width: 10.0, height: 10.0)
                 let iconAdvance = iconSize.width + 3.0
                 ghostDeletedIconFrame = CGRect(
