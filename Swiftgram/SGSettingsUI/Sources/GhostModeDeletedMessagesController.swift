@@ -624,8 +624,6 @@ public func ghostModeDeletedMessagesController(context: AccountContext) -> ViewC
                 sheet.addAction(UIAlertAction(title: title, style: .default, handler: { _ in
                     tab = selectedTab
                     mode = .tabs
-                    searchController.isActive = false
-                    controller?.navigationItem.searchController = nil
                     reload()
                 }))
             }
