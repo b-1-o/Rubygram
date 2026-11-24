@@ -12,6 +12,8 @@ public struct GhostModeDeletedMessage: Codable, Equatable, Identifiable {
     public var namespace: Int32?
     public var flags: UInt32?
     public var stableId: UInt32?
+    public var groupingKey: Int64?
+    public var groupInfoStableId: UInt32?
     public var mediaSummary: String?
     public var localMediaPath: String?
     public var mediaType: String?
@@ -42,7 +44,9 @@ public struct GhostModeDeletedMessage: Codable, Equatable, Identifiable {
         deletedAt: TimeInterval = Date().timeIntervalSince1970,
         namespace: Int32? = nil,
         flags: UInt32? = nil,
-        stableId: UInt32? = nil
+        stableId: UInt32? = nil,
+        groupingKey: Int64? = nil,
+        groupInfoStableId: UInt32? = nil
     ) {
         self.id = id
         self.messageId = messageId
@@ -53,6 +57,8 @@ public struct GhostModeDeletedMessage: Codable, Equatable, Identifiable {
         self.namespace = namespace
         self.flags = flags
         self.stableId = stableId
+        self.groupingKey = groupingKey
+        self.groupInfoStableId = groupInfoStableId
         self.mediaSummary = mediaSummary
         self.localMediaPath = localMediaPath
         self.mediaType = mediaType
@@ -129,6 +135,8 @@ public final class GhostModeDeletedMessagesStorage {
                 existing.namespace = message.namespace ?? existing.namespace
                 existing.flags = message.flags ?? existing.flags
                 existing.stableId = message.stableId ?? existing.stableId
+                existing.groupingKey = message.groupingKey ?? existing.groupingKey
+                existing.groupInfoStableId = message.groupInfoStableId ?? existing.groupInfoStableId
 
                 if let newPath = message.localMediaPath,
                    FileManager.default.fileExists(atPath: newPath) {
@@ -221,7 +229,8 @@ public enum GhostModeDeletedMessageCapture {
     public static func post(
         messageId: Int64, peerId: Int64, authorId: Int64?,
         text: String, date: Int32, mediaSummary: String?,
-        namespace: Int32, flags: Int32, stableId: UInt32
+        namespace: Int32, flags: Int32, stableId: UInt32,
+        groupingKey: Int64? = nil, groupInfoStableId: UInt32? = nil
     ) {
         guard UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMessages") || UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMedia") else { return }
         let payload: [String: Any] = [
@@ -235,6 +244,8 @@ public enum GhostModeDeletedMessageCapture {
             "flags": flags,
             "stableId": stableId
         ]
+        if let groupingKey { payload["groupingKey"] = groupingKey }
+        if let groupInfoStableId { payload["groupInfoStableId"] = groupInfoStableId }
         NotificationCenter.default.post(name: notificationName, object: nil, userInfo: payload)
     }
 }

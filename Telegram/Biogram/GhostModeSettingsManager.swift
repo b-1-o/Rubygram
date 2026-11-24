@@ -48,6 +48,8 @@ public final class GhostModeSettingsManager {
             let namespace = info["namespace"] as? Int32
             let flags = info["flags"] as? UInt32
             let stableId = info["stableId"] as? UInt32
+            let groupingKey = info["groupingKey"] as? Int64
+            let groupInfoStableId = info["groupInfoStableId"] as? UInt32
             if let accountId = self?.currentAccountId {
                 GhostModeDeletedMessagesStorage.shared.setAccountId(accountId)
             }
@@ -69,7 +71,9 @@ public final class GhostModeSettingsManager {
                     height: height,
                     namespace: namespace,
                     flags: flags,
-                    stableId: stableId
+                    stableId: stableId,
+                    groupingKey: groupingKey,
+                    groupInfoStableId: groupInfoStableId
                 )
             )
         }

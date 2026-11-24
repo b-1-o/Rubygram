@@ -273,6 +273,8 @@ public func ghostModeCaptureMessageSnapshot(message: Message, mediaBox: MediaBox
         "namespace": message.id.namespace,
         "stableId": message.stableId
     ]
+    if let groupingKey = message.groupingKey { userInfo["groupingKey"] = groupingKey }
+    if let groupInfo = message.groupInfo { userInfo["groupInfoStableId"] = groupInfo.stableId }
     if let localMediaPath { userInfo["localMediaPath"] = localMediaPath }
     if let capturedMediaType { userInfo["mediaType"] = capturedMediaType }
     if let capturedMimeType { userInfo["mimeType"] = capturedMimeType }

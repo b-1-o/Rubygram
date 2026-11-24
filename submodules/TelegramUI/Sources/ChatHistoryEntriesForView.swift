@@ -244,8 +244,8 @@ private func ghostModeMessage(
             id: messageId
         ),
         globallyUniqueId: nil,
-        groupingKey: nil,
-        groupInfo: nil,
+        groupingKey: snapshot.groupingKey,
+        groupInfo: snapshot.groupInfoStableId.map { MessageGroupInfo(stableId: $0) },
         threadId: nil,
         timestamp: snapshot.date,
         flags: flags,

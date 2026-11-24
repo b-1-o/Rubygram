@@ -15,6 +15,62 @@ import SGStrings
 import ObjectiveC
 
 private var ghostModeDeletedMessagesToggleTargetAssociationKey: UInt8 = 0
+private var ghostModeArchivePreviewPresenterAssociationKey: UInt8 = 0
+
+private final class GhostModeArchivePreviewPresenter: NSObject, UIDocumentInteractionControllerDelegate {
+    private weak var presentingViewController: UIViewController?
+    private var documentController: UIDocumentInteractionController?
+
+    func open(_ message: GhostModeDeletedMessage, from viewController: UIViewController) {
+        self.presentingViewController = viewController
+        guard let path = message.localMediaPath,
+              FileManager.default.fileExists(atPath: path) else {
+            self.presentUnavailableMessage(message, from: viewController)
+            return
+        }
+
+        let documentController = UIDocumentInteractionController(url: URL(fileURLWithPath: path))
+        documentController.delegate = self
+        self.documentController = documentController
+        if !documentController.presentPreview(animated: true) {
+            self.documentController = nil
+            self.presentUnavailableMessage(message, from: viewController)
+        }
+    }
+
+    func documentInteractionControllerViewControllerForPreview(_ controller: UIDocumentInteractionController) -> UIViewController {
+        return self.presentingViewController ?? UIViewController()
+    }
+
+    func documentInteractionControllerDidEndPreview(_ controller: UIDocumentInteractionController) {
+        self.documentController = nil
+    }
+
+    private func presentUnavailableMessage(_ message: GhostModeDeletedMessage, from viewController: UIViewController) {
+        var details: [String] = []
+        let text = message.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !text.isEmpty {
+            details.append(text)
+        }
+        if message.mediaType != nil {
+            if let path = message.localMediaPath, FileManager.default.fileExists(atPath: path) {
+                details.append("This file type cannot be previewed here.")
+            } else {
+                details.append("The media was not cached on this device before deletion, so no local preview is available.")
+            }
+        }
+        if details.isEmpty {
+            details.append("No local preview is available for this saved item.")
+        }
+        let alert = UIAlertController(
+            title: "Deleted message",
+            message: details.joined(separator: "\n\n"),
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        viewController.present(alert, animated: true)
+    }
+}
 
 private func ghostModeDeletedMessageIcon(_ message: GhostModeDeletedMessage) -> UIImage? {
     let summary = (message.mediaSummary ?? "").lowercased()
@@ -255,11 +311,17 @@ private enum DeletedEntry: ItemListNodeEntry {
                 title = "Photo"
             } else if mediaType == "video" || mediaType == "round" {
                 title = "Video"
+            } else if mediaType == "voice" {
+                title = "Voice message"
+            } else if mediaType == "gif" {
+                title = "GIF"
+            } else if mediaType == "file" {
+                title = m.fileName ?? "File"
             } else {
                 title = m.mediaSummary ?? "Media"
             }
             let hasLocalMedia = m.localMediaPath.map { FileManager.default.fileExists(atPath: $0) } ?? false
-            let label = (mediaType == "image" && !hasLocalMedia) ? "Preview unavailable" : ""
+            let label = (mediaType != nil && !hasLocalMedia) ? "Preview unavailable" : ""
             return ItemListDisclosureItem(
                 presentationData: presentationData,
                 icon: ghostModeDeletedMessageIcon(m),
@@ -267,7 +329,7 @@ private enum DeletedEntry: ItemListNodeEntry {
                 label: label,
                 sectionId: self.section,
                 style: .blocks,
-                action: {}
+                action: { arguments.openMessage(m) }
             )
         case .clear:
             return ItemListActionItem(
@@ -287,9 +349,15 @@ private enum DeletedEntry: ItemListNodeEntry {
 
 private final class DeletedArguments {
     let openChat: (Int64) -> Void
+    let openMessage: (GhostModeDeletedMessage) -> Void
     let clearAll: () -> Void
-    init(openChat: @escaping (Int64) -> Void, clearAll: @escaping () -> Void) {
+    init(
+        openChat: @escaping (Int64) -> Void,
+        openMessage: @escaping (GhostModeDeletedMessage) -> Void,
+        clearAll: @escaping () -> Void
+    ) {
         self.openChat = openChat
+        self.openMessage = openMessage
         self.clearAll = clearAll
     }
 }
@@ -345,26 +413,24 @@ private func buildEntries(
 
     case .tabs:
         let filtered: [GhostModeDeletedMessage]
-        switch tab {
-        case .media:
-            filtered = items.filter {
-                ($0.mediaSummary ?? "").lowercased().contains("image")
-                    || ($0.mediaSummary ?? "").lowercased().contains("video")
-            }
-        case .files:
-            filtered = items.filter {
-                ($0.mediaSummary ?? "").lowercased().contains("file")
-                    || ($0.mediaSummary ?? "").lowercased().contains("document")
-            }
-        case .voice:
-            filtered = items.filter {
-                ($0.mediaSummary ?? "").lowercased().contains("voice")
-                    || ($0.mediaSummary ?? "").lowercased().contains("audio")
-            }
-        case .rounds:
-            filtered = items.filter {
-                ($0.mediaSummary ?? "").lowercased().contains("round")
-                    || ($0.mediaSummary ?? "").lowercased().contains("instant")
+        filtered = items.filter { message in
+            let type = (message.mediaType ?? "").lowercased()
+            let summary = (message.mediaSummary ?? "").lowercased()
+            switch tab {
+            case .media:
+                return ["image", "video", "gif", "round"].contains(type)
+                    || summary.contains("image")
+                    || summary.contains("video")
+                    || summary.contains("gif")
+                    || summary.contains("round")
+                    || summary.contains("instant")
+            case .files:
+                return type == "file"
+                    || (type.isEmpty && (summary.contains("file") || summary.contains("document")))
+            case .voice:
+                return type == "voice" || summary.contains("voice") || summary.contains("audio")
+            case .rounds:
+                return type == "round" || summary.contains("round") || summary.contains("instant")
             }
         }
 
@@ -456,10 +522,13 @@ public func ghostModeDeletedMessagesController(context: AccountContext) -> ViewC
     }
     reload()
 
+    let previewPresenter = GhostModeArchivePreviewPresenter()
+    var openMessageImpl: ((GhostModeDeletedMessage) -> Void)?
     let arguments = DeletedArguments(
         openChat: { peerId in
             pushImpl?(ghostModeDeletedChatController(context: context, peerId: peerId))
         },
+        openMessage: { message in openMessageImpl?(message) },
         clearAll: {
             GhostModeDeletedMessagesStorage.shared.clear { reload() }
         }
@@ -509,6 +578,16 @@ public func ghostModeDeletedMessagesController(context: AccountContext) -> ViewC
     }
 
     let controller = ItemListController(context: context, state: signal)
+    openMessageImpl = { [weak controller] message in
+        guard let controller else { return }
+        previewPresenter.open(message, from: controller)
+    }
+    objc_setAssociatedObject(
+        controller,
+        &ghostModeArchivePreviewPresenterAssociationKey,
+        previewPresenter,
+        .OBJC_ASSOCIATION_RETAIN_NONATOMIC
+    )
     pushImpl = { [weak controller] viewController in
         (controller?.navigationController as? NavigationController)?.pushViewController(viewController)
     }
@@ -583,11 +662,17 @@ public func ghostModeDeletedChatController(context: AccountContext, peerId: Int6
     }
     reload()
 
-    let arguments = DeletedArguments(openChat: { _ in }, clearAll: {
-        GhostModeDeletedMessagesStorage.shared.clear(peerId: peerId) {
-            reload()
+    let previewPresenter = GhostModeArchivePreviewPresenter()
+    var openMessageImpl: ((GhostModeDeletedMessage) -> Void)?
+    let arguments = DeletedArguments(
+        openChat: { _ in },
+        openMessage: { message in openMessageImpl?(message) },
+        clearAll: {
+            GhostModeDeletedMessagesStorage.shared.clear(peerId: peerId) {
+                reload()
+            }
         }
-    })
+    )
 
     let signal = combineLatest(queue: .mainQueue(), context.sharedContext.presentationData, statePromise.get())
     |> map { presentationData, items -> (ItemListControllerState, (ItemListNodeState, Any)) in
@@ -617,5 +702,16 @@ public func ghostModeDeletedChatController(context: AccountContext, peerId: Int6
         return (controllerState, (listState, arguments))
     }
 
-    return ItemListController(context: context, state: signal)
+    let controller = ItemListController(context: context, state: signal)
+    openMessageImpl = { [weak controller] message in
+        guard let controller else { return }
+        previewPresenter.open(message, from: controller)
+    }
+    objc_setAssociatedObject(
+        controller,
+        &ghostModeArchivePreviewPresenterAssociationKey,
+        previewPresenter,
+        .OBJC_ASSOCIATION_RETAIN_NONATOMIC
+    )
+    return controller
 }
