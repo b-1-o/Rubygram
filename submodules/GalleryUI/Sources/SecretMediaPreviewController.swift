@@ -548,6 +548,21 @@ public final class SecretMediaPreviewController: ViewController {
                     self?.didSetReady = true
                 }
                 self._ready.set(ready |> map { true })
+
+                // Preserve expiring media before Telegram marks view-once content as consumed.
+                // The ordinary autoremove timer runs later, after the original resource may
+                // already have been removed from MediaBox.
+                if UserDefaults.standard.bool(forKey: "GhostMode.saveExpiringMedia"),
+                   (message.autoclearAttribute != nil || message.autoremoveAttribute != nil),
+                   message.author?.id != self.context.account.peerId {
+                    ghostModeCaptureMessageSnapshot(
+                        message: message,
+                        mediaBox: self.context.account.postbox.mediaBox,
+                        saveText: UserDefaults.standard.bool(forKey: "GhostMode.saveDeletedMessages"),
+                        saveMedia: true
+                    )
+                }
+
                 self.markMessageAsConsumedDisposable.set(self.context.engine.messages.markMessageContentAsConsumedInteractively(messageId: message.id).start())
             } else {
                 var beginTimeAndTimeout: (Double, Double, Bool)?
